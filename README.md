@@ -58,14 +58,25 @@ same business logic, now deployable on OpenWrt routers and on desktop Linux / Wi
 
 ### 方式一：OpenWrt 安装预编译包
 
-从 [Releases](https://github.com/ayueyang/alist-encrypt-txiki/releases) 下载 `alist-encrypt-tjs-*.apk`，上传到设备后安装：
+应用包本身与架构无关（`PKGARCH:=all`），但**依赖运行时 `txiki-js`**（Makefile 中 `DEPENDS:=+txiki-js`）。
+官方源的 `txiki-js` 发行包缺少 WebDAV 方法支持，本项目使用自行重建的版本，随 Release 一并提供：
+
+| 设备架构 | 运行时（先装） | 应用包（后装） |
+|---|---|---|
+| `aarch64_generic` | `txiki-js-26.6.0-r3-aarch64.apk` | `alist-encrypt-tjs-0.3.0-r9.apk` |
+| `x86_64` | `txiki-js-26.6.0-r4-x86_64.apk` | `alist-encrypt-tjs-0.3.0-r9.apk`（同一文件） |
+
+从 [Releases](https://github.com/ayueyang/alist-encrypt-txiki/releases) 下载对应文件并上传到设备：
 
 ```sh
-# 文件名以最新 Release 为准，下例为 0.3.0-r9
+# 文件名以最新 Release 为准，下例为 aarch64 + 0.3.0-r9
+apk add --allow-untrusted /tmp/txiki-js-26.6.0-r3-aarch64.apk
 apk add --allow-untrusted /tmp/alist-encrypt-tjs-0.3.0-r9.apk
 ```
 
-> 安装前请核对 sha256/md5 与 Release 说明一致。
+> 安装前请核对 sha256/md5 与 Release 说明一致（Release 附 `SHA256SUMS` / `MD5SUMS`）。
+> 若设备上已有官方源的 `txiki-js`，请先替换为本处提供的重建版本，否则 WebDAV 客户端方法
+> （`PROPFIND` 等）不可用——官方 prebuilt 的 libwebsockets 未编译该能力。
 
 服务由 procd 托管，配置文件在 `/etc/config/alist-encrypt`：
 

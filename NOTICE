@@ -1,0 +1,32 @@
+# NOTICE — 来源与第三方许可
+
+本仓库是 **alist-encrypt 的 txiki.js 运行时适配版**，在 OpenWrt（ARM64 / x86_64）与常规桌面（Linux / Windows）上由该平台的 txiki.js 运行时启动同一套应用代码。
+
+## 上游
+
+- 项目：**alist-encrypt** — https://github.com/traceless/alist-encrypt
+- 许可：**ISC**（来自上游 `node-proxy/package.json` 的 `license` 字段；上游仓库未附 `LICENSE` 文件）
+- 本仓库固定基线：上游 `main`，commit `3d5f19fc5a001dfcac110d4c7d3d12d12ab2e617`
+- 上游源码在本仓库中的位置：`node-proxy/`、`enc-webui/`（保持原有目录结构与文件职责）
+
+本仓库的业务代码以上游为准：29 个后端业务文件中 **22 个与上游逐字节相同**，其余 7 个差异全部收敛在运行时边界（Node 模块加载、`Buffer`/`process` 全局、文件 I/O、HTTP/流、加密实现、DAO 存储），逐项列出与理由见
+[docs/porting-code-review.md](docs/porting-code-review.md) 与
+[docs/openwrt-tjs-unsupported-and-replacements.md](docs/openwrt-tjs-unsupported-and-replacements.md)。
+
+## 运行时
+
+- **txiki.js** — https://github.com/saghul/txiki.js
+- 许可：**MIT**（Copyright © 2019-present Saúl Ibarra Corretgé）
+- 本仓库**不包含** txiki.js 源码，仅依赖其发行包；OpenWrt 侧的 `txiki-js-26.6.0` APK 由本项目自行重建（含 libwebsockets WebDAV method 补丁，见
+  [docs/openwrt-tjs-unsupported-and-replacements.md](docs/openwrt-tjs-unsupported-and-replacements.md) 的 C-21）。
+
+## 构建期依赖
+
+以 `openwrt-tjs/package-lock.json` 锁定版本，各依赖保留其原始许可：
+`esbuild`(MIT)、`hono`(MIT)、`koa-compose`(MIT)、`path-to-regexp`(MIT)、`buffer`(MIT)、
+`fast-xml-parser`(MIT)、`@noble/ciphers`(MIT)、`@noble/hashes`(MIT)。
+`node-proxy/` 与 `enc-webui/` 的依赖见各自 `package.json` / `package-lock.json`。
+
+## 说明
+
+本仓库不包含任何 AList 实例地址、账号或口令。测试凭据一律通过进程环境变量传入。

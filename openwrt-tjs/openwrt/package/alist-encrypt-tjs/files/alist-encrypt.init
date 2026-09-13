@@ -1,0 +1,31 @@
+#!/bin/sh /etc/rc.common
+
+USE_PROCD=1
+START=95
+STOP=10
+
+start_service() {
+	local enabled home alist_host run_mode
+
+	config_load alist-encrypt
+	config_get_bool enabled main enabled 1
+	[ "$enabled" -eq 1 ] || return 0
+	config_get home main home /etc/alist-encrypt
+	config_get alist_host main alist_host
+	config_get run_mode main run_mode PROD
+
+	mkdir -p "$home"
+	procd_open_instance
+	procd_set_param command /usr/bin/tjs run /usr/lib/alist-encrypt/server.mjs
+	procd_set_param env "ALIST_ENCRYPT_HOME=$home" "ALIST_ENCRYPT_PROGRAM_DIR=/usr/lib/alist-encrypt" "RUN_MODE=$run_mode"
+	[ -n "$alist_host" ] && procd_append_param env "ALIST_HOST=$alist_host"
+	procd_set_param respawn 3600 5 5
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_set_param file "$home/config.json"
+	procd_close_instance
+}
+
+service_triggers() {
+	procd_add_reload_trigger alist-encrypt
+}

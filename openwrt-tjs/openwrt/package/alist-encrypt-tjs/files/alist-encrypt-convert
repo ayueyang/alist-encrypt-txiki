@@ -1,0 +1,3 @@
+#!/bin/sh
+
+exec /usr/bin/tjs run /usr/lib/alist-encrypt/convert.mjs "$@"

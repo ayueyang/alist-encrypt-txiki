@@ -1,0 +1,12 @@
+# 本机/部分环境 core.autocrlf=true 时，Windows 检出会把 shell 脚本转成 CRLF，
+# 使 #!/bin/sh 脚本执行失败（`\r` 会被当作命令名的一部分）。仅对脚本强制 LF。
+*.sh  text eol=lf
+
+# 二进制产物不做行尾转换
+*.apk  binary
+*.ipk  binary
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.woff binary
+*.woff2 binary

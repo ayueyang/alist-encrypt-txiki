@@ -1,0 +1,180 @@
+API_RULES {"serverHost":"10.0.2.2","serverPort":"5244","https":false,"rules":[{"describe":"my video","enable":true,"encType":"aesctr","encName":false,"encFolder":false,"encSuffix":"","encPath":["encrypt_folder/*","movie_encrypt/*"]}]}
+API_CASE_START A01 应用登录 /enc-api/login
+API_REQ POST /enc-api/login
+API_REQ_DONE POST /enc-api/login 200 100ms
+API_CASE_START A02 错误密码登录被拒绝
+API_REQ POST /enc-api/login
+API_REQ_DONE POST /enc-api/login 200 76ms
+API_CASE_START A03 缺少 token 的请求被拦截
+API_REQ POST /enc-api/getUserInfo
+API_REQ_DONE POST /enc-api/getUserInfo 200 65ms
+API_CASE_START A04 读取当前用户信息
+API_REQ POST /enc-api/getUserInfo
+API_REQ_DONE POST /enc-api/getUserInfo 200 86ms
+API_CASE_START A05 读取 AList 代理配置
+API_REQ POST /enc-api/getAlistConfig
+API_REQ_DONE POST /enc-api/getAlistConfig 200 43ms
+API_CASE_START A06 写入测试加密规则
+API_REQ POST /enc-api/saveAlistConfig
+API_REQ_DONE POST /enc-api/saveAlistConfig 200 107ms
+API_REQ POST /enc-api/getAlistConfig
+API_REQ_DONE POST /enc-api/getAlistConfig 200 79ms
+API_CASE_START A07 目录派生密码编解码往返
+API_REQ POST /enc-api/encodeFoldName
+API_REQ_DONE POST /enc-api/encodeFoldName 200 114ms
+API_REQ POST /enc-api/decodeFoldName
+API_REQ_DONE POST /enc-api/decodeFoldName 200 94ms
+API_CASE_START A08 读取 WebDAV 代理配置
+API_REQ POST /enc-api/getWebdavonfig
+API_REQ_DONE POST /enc-api/getWebdavonfig 200 81ms
+API_CASE_START A09 WebDAV 配置增删改往返
+API_REQ POST /enc-api/getWebdavonfig
+API_REQ_DONE POST /enc-api/getWebdavonfig 200 76ms
+API_REQ POST /enc-api/saveWebdavConfig
+API_REQ_DONE POST /enc-api/saveWebdavConfig 200 80ms
+API_REQ POST /enc-api/getWebdavonfig
+API_REQ_DONE POST /enc-api/getWebdavonfig 200 66ms
+API_REQ POST /enc-api/updateWebdavConfig
+API_REQ_DONE POST /enc-api/updateWebdavConfig 200 63ms
+API_REQ POST /enc-api/delWebdavConfig
+API_REQ_DONE POST /enc-api/delWebdavConfig 200 83ms
+API_REQ POST /enc-api/getWebdavonfig
+API_REQ_DONE POST /enc-api/getWebdavonfig 200 42ms
+API_REQ POST /api/auth/login
+API_REQ_DONE POST /api/auth/login 200 154ms
+API_CASE_START B01 代理列目录 /api/fs/list
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 1638ms
+API_CASE_START B02 代理列子目录 /api/fs/dirs
+API_REQ POST /api/fs/dirs
+API_REQ_DONE POST /api/fs/dirs 200 99ms
+API_CASE_START B03 创建明文顶层隔离目录
+API_REQ POST /api/fs/mkdir
+API_REQ_DONE POST /api/fs/mkdir 200 422ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 535ms
+API_CASE_START B04 创建加密子目录
+API_REQ POST /api/fs/mkdir
+API_REQ_DONE POST /api/fs/mkdir 200 740ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 462ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 442ms
+API_CASE_START B05 加密上传 /api/fs/put
+API_CASE_START B06 云端校验：文件名密文 + 内容密文
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 512ms
+API_REQ POST /api/fs/get
+API_REQ_DONE POST /api/fs/get 200 34ms
+API_CASE_START B07 代理列目录显示明文名
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 643ms
+API_CASE_START B08 获取文件详情 /api/fs/get
+API_REQ POST /api/fs/get
+API_REQ_DONE POST /api/fs/get 200 243ms
+API_CASE_START B09 重定向通道完整解密下载
+API_CASE_START B10 重定向通道 Range 解密下载
+API_CASE_START B11 直链通道 /d 完整解密下载
+API_CASE_START B12 直链通道 /d Range 解密下载
+API_CASE_START B13 直链通道 /p 解密下载
+API_CASE_START B14 重命名 /api/fs/rename
+API_REQ POST /api/fs/rename
+API_REQ_DONE POST /api/fs/rename 200 639ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 586ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 635ms
+API_CASE_START B15 复制 /api/fs/copy
+API_REQ POST /api/fs/mkdir
+API_REQ_DONE POST /api/fs/mkdir 200 420ms
+API_REQ POST /api/fs/copy
+API_REQ_DONE POST /api/fs/copy 200 861ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 612ms
+API_CASE_START B16 移动 /api/fs/move
+API_REQ POST /api/fs/mkdir
+API_REQ_DONE POST /api/fs/mkdir 200 394ms
+API_REQ POST /api/fs/move
+API_REQ_DONE POST /api/fs/move 200 891ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 587ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 311ms
+API_CASE_START B17 明文路径透传（负向验证）
+API_REQ POST /api/fs/mkdir
+API_REQ_DONE POST /api/fs/mkdir 200 407ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 571ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 477ms
+API_CASE_START B18 删除文件 /api/fs/remove
+API_REQ POST /api/fs/remove
+API_REQ_DONE POST /api/fs/remove 200 856ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 328ms
+API_CASE_START B19 大文件并发上传（R-25 回归守护）
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 35ms
+API_CASE_START C01 WebDAV PROPFIND 根目录
+API_CASE_START C02 WebDAV PUT 加密上传
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 2447ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 536ms
+API_CASE_START C03 WebDAV PROPFIND 显示明文名
+API_CASE_START C04 WebDAV GET 完整解密下载
+API_CASE_START C05 WebDAV HEAD 返回明文长度
+API_CASE_START C06 WebDAV Range 解密下载
+API_CASE_START C07 WebDAV COPY
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 469ms
+API_CASE_START C08 WebDAV MOVE
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 491ms
+API_CASE_START C09 WebDAV DELETE
+API_REQ POST /api/fs/remove
+API_REQ_DONE POST /api/fs/remove 200 765ms
+API_REQ POST /api/fs/remove
+API_REQ_DONE POST /api/fs/remove 200 678ms
+API_REQ POST /enc-api/saveAlistConfig
+API_REQ_DONE POST /enc-api/saveAlistConfig 200 99ms
+API_CASE PASS A01 应用登录 /enc-api/login :: HTTP 200 token=b48da730…
+API_CASE PASS A02 错误密码登录被拒绝 :: code=500 msg=passwword error
+API_CASE PASS A03 缺少 token 的请求被拦截 :: code=401 msg=user unlogin
+API_CASE PASS A04 读取当前用户信息 :: username=admin version=0.3.0
+API_CASE PASS A05 读取 AList 代理配置 :: passwdList=1 serverHost=10.0.2.2:5244
+API_CASE PASS A06 写入测试加密规则 :: encType=aesctr encPath=["_api_e2e_1789299884064.*"]
+API_CASE PASS A07 目录派生密码编解码往返 :: 前缀_meA+8JX2Uer… → rc4/inner-password
+API_CASE PASS A08 读取 WebDAV 代理配置 :: webdavServer=1
+API_CASE PASS A09 WebDAV 配置增删改往返 :: 新增 / 更新 / 删除均生效
+API_CASE PASS B00 AList 登录（经代理） :: HTTP 200
+API_CASE PASS B01 代理列目录 /api/fs/list :: content=44
+API_CASE PASS B02 代理列子目录 /api/fs/dirs :: dirs=32
+API_CASE PASS B03 创建明文顶层隔离目录 :: 云端目录名保持明文：_api_e2e_1789299884064
+API_CASE PASS B04 创建加密子目录 :: 云端目录名为密文：PK~3OnTdPP22PUJr…
+API_CASE PASS B05 加密上传 /api/fs/put :: HTTP 200
+API_CASE PASS B06 云端校验：文件名密文 + 内容密文 :: 云端名=PbBhPGyItI1FU8d-… 长度=65536 头部=4e5b160a00bf46a065e9f2f06f80fb61
+API_CASE PASS B07 代理列目录显示明文名 :: 显示明文名：中文 sample.txt
+API_CASE PASS B08 获取文件详情 /api/fs/get :: raw_url → http://127.0.0.1/redirect/187bd95d-2098-4b8f-94fd-833d9c266a2c
+API_CASE PASS B09 重定向通道完整解密下载 :: length=65536 与明文逐字节一致
+API_CASE PASS B10 重定向通道 Range 解密下载 :: 206 length=53191 bytes 12345-65535/65536
+API_CASE FAIL B11 直链通道 /d 完整解密下载 :: 内容与明文不一致，长度 51，54151c1610f701f432abbaac39c0ff62 | ascii="T.......2...9..bkF..x41:.(.. ..!.....:%....@Oh...9o"
+API_CASE FAIL B12 直链通道 /d Range 解密下载 :: HTTP 200（预期 206）
+API_CASE FAIL B13 直链通道 /p 解密下载 :: 内容与明文不一致，长度 51，54151c1610f701f432abbaac39c0ff62 | ascii="T.......2...9..bkF..x41:.(.. ..!.....:%....@Oh...9o"
+API_CASE PASS B14 重命名 /api/fs/rename :: 代理显示=renamed 文件.txt 云端=mer2KvNXguZeXwzW…
+API_CASE PASS B15 复制 /api/fs/copy :: 目标目录显示：renamed 文件.txt
+API_CASE PASS B16 移动 /api/fs/move :: 移动后目标显示：renamed 文件.txt
+API_CASE PASS B17 明文路径透传（负向验证） :: 云端保持明文名：plain sample.txt
+API_CASE PASS B18 删除文件 /api/fs/remove :: 删除后目录为空
+API_CASE PASS B19 大文件并发上传（R-25 回归守护） :: PUT 12508ms，ping 11/13 正常，云端密文尺寸吻合
+API_CASE PASS C01 WebDAV PROPFIND 根目录 :: HTTP 207 multistatus
+API_CASE PASS C02 WebDAV PUT 加密上传 :: HTTP 201 云端新增 1 个密文文件
+API_CASE PASS C03 WebDAV PROPFIND 显示明文名 :: PROPFIND 明文名：可见目录 | 移动目标 | 复制目标 | dav 样例.txt | renamed 文件.txt | large-r25.bin
+API_CASE FAIL C04 WebDAV GET 完整解密下载 :: 内容与明文不一致，长度 102，头部 7b2273756363657373223a66616c7365
+API_CASE PASS C05 WebDAV HEAD 返回明文长度 :: content-length=32768
+API_CASE FAIL C06 WebDAV Range 解密下载 :: HTTP 200（预期 206）
+API_CASE FAIL C07 WebDAV COPY :: HTTP 502 Bad Gateway
+API_CASE FAIL C08 WebDAV MOVE :: HTTP 502 Bad Gateway
+API_CASE FAIL C09 WebDAV DELETE :: HTTP 404 Not Found
+API_SUMMARY {"runtime":"openwrt tjs","proxyOrigin":"http://127.0.0.1:5344","alistOrigin":"http://10.0.2.2:5244","rootPath":"/会员","testDir":"/会员/_api_e2e_1789299884064","total":38,"pass":30,"fail":8,"skip":0}
+SUITE_DONE

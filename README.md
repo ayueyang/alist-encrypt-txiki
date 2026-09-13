@@ -49,8 +49,8 @@ same business logic, now deployable on OpenWrt routers and on desktop Linux / Wi
 | 平台 | 运行时 | 状态 |
 |---|---|---|
 | OpenWrt（`aarch64_generic` / `x86_64`） | 本项目构建的 txiki.js 软件包 | 支持 |
-| Linux（x86_64 / aarch64） | 自行编译 txiki.js（官方无 Linux 二进制） | 支持 |
-| Windows（x86_64） | txiki.js 官方 release | 基本支持，WebDAV 方法不可用（官方二进制未打包该能力） |
+| Linux（x86_64 / aarch64） | 本项目提供的预编译包（官方无 Linux 二进制） | 支持 |
+| Windows（x86_64） | 本项目提供的预编译包（txiki.js 官方二进制） | 基本支持，WebDAV 方法不可用（官方二进制未打包该能力） |
 
 固定基线：上游 `main@3d5f19f`、txiki.js `v26.6.0`。验证矩阵与逐项测试记录见 [tests/](tests/)。
 
@@ -92,9 +92,38 @@ uci commit alist-encrypt
 可配置项：`enabled`（是否随系统启动）、`home`（数据目录，默认 `/etc/alist-encrypt`）、
 `alist_host`（AList 地址）、`run_mode`（默认 `PROD`）。日志用 `logread -e alist-encrypt` 查看。
 
-### 方式二：桌面运行
+### 方式二：桌面运行（下载解压即用）
 
-先准备该平台的 `tjs` 可执行文件（Linux 需自行编译 txiki.js），再构建并启动：
+从 [Releases](https://github.com/ayueyang/alist-encrypt-txiki/releases) 下载对应平台的压缩包：
+
+| 平台 | 架构 | 下载 |
+|---|---|---|
+| Linux | x86_64 | `alist-encrypt-txiki-0.3.0-r9-linux-x86_64.tar.gz` |
+| Linux | aarch64 / ARM64 | `alist-encrypt-txiki-0.3.0-r9-linux-aarch64.tar.gz` |
+| Windows | x86_64 | `alist-encrypt-txiki-0.3.0-r9-windows-x86_64.zip` |
+
+包内已含对应平台的 `tjs` 运行时、应用文件与启动脚本，**不需要另装 Node**。
+
+```sh
+tar xzf alist-encrypt-txiki-0.3.0-r9-linux-x86_64.tar.gz
+cd alist-encrypt-txiki-0.3.0-r9-linux-x86_64
+
+vi config.json            # 填 AList 地址与端口
+chmod +x tjs start.sh     # 解压后若丢了执行权限
+./start.sh
+```
+
+Windows 解压后编辑 `config.json`，再双击 `start.bat`（或右键 `start.ps1` → 使用 PowerShell 运行）。
+
+启动后浏览器打开 `http://127.0.0.1:5344/public/index.html`，默认账号 `admin` / 密码 `123456`，
+**首次登录后请立即修改**。
+
+> **Linux 包要求 glibc ≥ 2.35**（Ubuntu 22.04+ / Debian 12+ / Raspberry Pi OS Bookworm+）。
+> **Windows 包内的 `tjs.exe` 是 txiki.js 官方二进制**，未含 WebDAV 方法补丁——HTTP 代理与管理页面
+> 可用，但 WebDAV 客户端（`PROPFIND` / `MKCOL` / `COPY` / `MOVE`）不可用。需要 WebDAV 请改用
+> Linux 包或 OpenWrt 包。
+
+若你的平台不在上表内（或不满足 glibc 要求），可自行编译运行时：
 
 ```sh
 cd openwrt-tjs
@@ -102,6 +131,8 @@ npm ci
 node build.mjs
 tjs run dist/server.mjs
 ```
+
+编译带 WebDAV 补丁的 txiki.js 的完整步骤见 [docs/desktop-txiki-runbook.md](docs/desktop-txiki-runbook.md)。
 
 ### 方式三：从源码构建 OpenWrt 软件包
 
@@ -178,7 +209,8 @@ diff -rq /tmp/upstream/enc-webui enc-webui                                # 应�
 
 - **`Expect: 100-continue`**：未按 HTTP 语义完整实现，部分客户端的上传前协商会被跳过。
 - **下游取消信号**：客户端中断时的取消传播语义与 Node 版存在差异。
-- **Windows 官方二进制缺少 WebDAV 方法**：需使用自行编译的 txiki.js 才能启用 WebDAV。
+- **Windows 官方二进制缺少 WebDAV 方法**：Windows 包内的 `tjs.exe` 是 txiki.js 官方原版，未含该补丁；
+  需要 WebDAV 请改用本项目的 Linux 包或 OpenWrt 包，或自行编译带补丁的 txiki.js。
 - **纯内网环境下 AList 页面加载外部 CDN 图片会失败**：属上游页面行为，非代理问题。
 
 以上限制均未被伪装成已支持。逐项原因与替代方案见

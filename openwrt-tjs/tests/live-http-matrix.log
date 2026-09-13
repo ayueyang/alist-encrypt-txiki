@@ -1,0 +1,16 @@
+[alist-encrypt] [INFO] httpClient响应结束. POST 124 /echo
+HTTP_MATRIX_PASS http-client-json status=200
+HTTP_MATRIX_PASS json status=200
+HTTP_MATRIX_PASS form content-type=application/x-www-form-urlencoded
+HTTP_MATRIX_PASS binary hex=0001027f80feff
+HTTP_MATRIX_PASS stream-upload body=stream-upload
+HTTP_MATRIX_PASS stream-response chunks=3
+[alist-encrypt] [INFO] 302 redirectUrl: /redirect/two
+HTTP_MATRIX_PASS redirect-302 status=302
+[alist-encrypt] [INFO] 302 redirectUrl: /redirect/two
+HTTP_MATRIX_PASS redirect-multiple status=200
+HTTP_MATRIX_PASS head status=204
+HTTP_MATRIX_PASS range status=206
+HTTP_MATRIX_PASS content-disposition attachment; filename*=UTF-8''matrix.txt
+HTTP_MATRIX_LIMITATION client-cancel upstream-cancelled=false
+HTTP_MATRIX_LIMITATION expect-continue received=false upstream-bytes=11 final-response=false

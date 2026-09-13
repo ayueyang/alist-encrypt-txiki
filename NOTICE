@@ -6,6 +6,7 @@
 
 - 项目：**alist-encrypt** — https://github.com/traceless/alist-encrypt
 - 许可：**ISC**（来自上游 `node-proxy/package.json` 的 `license` 字段；上游仓库未附 `LICENSE` 文件）
+- 上游版权声明：Copyright (c) traceless and the alist-encrypt contributors。ISC 要求该声明随本软件的所有副本保留，故在此复现；本仓库 `LICENSE` 采用 ISC 标准文本（单一版权行，便于 GitHub 自动识别），上游归属由本文件承担。
 - 本仓库固定基线：上游 `main`，commit `3d5f19fc5a001dfcac110d4c7d3d12d12ab2e617`
 - 上游源码在本仓库中的位置：`node-proxy/`、`enc-webui/`（保持原有目录结构与文件职责）
 

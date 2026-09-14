@@ -9,7 +9,7 @@
 - 上游：`upstream/alist-encrypt`，`main@3d5f19fc5a001dfcac110d4c7d3d12d12ab4e617`
 - OpenWrt：`25.12.5 / armsr / armv8 / aarch64_generic`
 - txiki.js：`v26.6.0-r3`，guest 执行器为 `/usr/bin/tjs`
-- 应用包：`alist-encrypt-tjs-0.3.0-r9.apk`（md5 `ae7189e7…`；本表于 r3 首次验收，r6–r9 复验未改变任何结论；历史包 r1–r8 并存，r8 与 2026-09-13 修复后的源码不再匹配，仅供回溯）
+- 应用包：`alist-encrypt-tjs-0.3.0-r10.apk`（md5 `c0348642…`，包内 `/usr/lib/alist-encrypt/server.mjs` = dist `eab8830a…`；本表于 r3 首次验收，r6–r10 复验未改变任何结论；历史包 r1–r9 并存，r9 及更早与 2026-09-15 的 WebDAV 跨目录 COPY/MOVE 修复不再匹配，仅供回溯）
 - 验收日期：`2026-09-11`（首次）／`2026-09-12`–`09-13`（r6–r8 复验）／`2026-09-13`（r9 源码审查修复，见 `porting-code-review.md`；同日完成 r9 的 ARM64 guest 复跑 38 项 30/8，见 `tests/run-2026-09-13.md` R-35）／`2026-09-15`（r10 的 ARM64 guest 全量实测：套件扩为 48 项，`45/0/3`，见 `tests/run-2026-09-15.md` R-42；本轮登记 AList 侧「跨目录 MOVE 撞名」限制与运行时 **C-26**）
 
 ## 总表

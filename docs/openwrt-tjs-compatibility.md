@@ -40,6 +40,7 @@
 | C-23 | `URL.pathname` 在 Windows 的盘符前导斜杠 | `new Worker(new URL('./prga-worker.mjs', import.meta.url).pathname)` 在 Windows 得到 `/C:/…`，txiki Worker 无法解析，PRGA worker 全部创建失败 | 剥掉盘符前的斜杠（POSIX 路径不匹配该模式，行为逐字节不变） | POSIX 路径与 worker 行为、RC4/MIX 算法结果均不变 | Windows 官方 tjs 重启后 stderr 无 worker 错误、向量 `ok:true`；Linux/OpenWrt 等价；详见 C-23 段 |
 | C-24 | 「流式 body + 已知长度」的上传请求 | txiki Fetch 对 `ReadableStream` body 固定使用 chunked，无法同时发送 `Content-Length`（见 C-18） | `openwrt-tjs/src/platform/fixed-length-fetch.js` 自建最小 HTTP/1.1 客户端（仅 http/https、必须带合法 `Content-Length`、响应上限 4 MiB） | 上传字节、方法与业务头；其余请求仍走运行时 fetch | 上传对照与真实 AList 上传通过；**本审查中维护风险最高的模块**，上游同步时列为重点回归对象（见 `porting-code-review.md` F-08） |
 | C-25 | 出站 `Origin` 请求头 | txiki Fetch **不接受调用方给定的 `Origin`**，一律改写为目标 origin（端口被丢弃），缺省时自行补上 | 平台层 `createHeaders()` 过滤入站 `origin`（与运行时既定行为一致，仅避免「以为已转发」的误解） | 下载内容、状态码、Range 与业务头均不受影响 | R-36 两路取证：运行时行为回显实测 + 真实 CDN 六变因响应逐字节一致（`403 sign error`）；详见 C-25 段 |
+| C-26 | Fetch 等待响应头的 15 秒上限 | txiki vendored libwebsockets 的上下文超时默认 15 秒（`deps/libwebsockets/lib/core/context.c:1176` `context->timeout_secs = 15;`，仅可由 context 创建参数覆盖）；请求体发出后在 `PENDING_TIMEOUT_AWAITING_SERVER_RESPONSE` 状态下按该值计时（`…/roles/http/client/client-http.c:340`），txiki 自身从不设置该值 | **无代码改动**：属运行时内部常量，调用方无法设置。后端（如百度 dlink 冷启动）响应头慢于 15s 时，`fetch` 以 `Network request failed: Timed out waiting server reply` 失败；并发请求排队会先撞上该上限 | 仅影响等待时长上限；已收到的内容字节、状态码、Range 与业务头语义不变 | guest 实测：并发 GET/PUT 在百度 dlink 冷启动时复现；暖场单路 GET 正常（D03/D03b 记 SKIP）；详见 `tests/run-2026-09-15.md` |
 
 ## C-11 Worker 失败记录
 
@@ -353,3 +354,29 @@ curl UA / 浏览器 UA / +Referer=pan.baidu.com / +Origin=代理自身 / +Origin
 六种变因响应逐字节一致 ⇒ `Origin` 不参与该 CDN 的鉴权/反盗链判定，过滤与否在链路上无可观察差异。
 
 **处置**：登记为 C-25（见 `openwrt-tjs-unsupported-and-replacements.md`）；`PKG_RELEASE` 仍为 9、`dist/server.mjs` 仍为 `78beaa11…`、应用包仍为 r9，无需重编。取证记录见 `tests/run-2026-09-13.md` 第 7 节 R-36。
+
+## C-26 Fetch 等待响应头的 15 秒上限（2026-09-15，R-42）
+
+**现象**：guest 内并发两路 GET / PUT 经代理访问真实 AList（百度网盘存储）时，客户端出现
+`Network request failed: Timed out waiting server reply`，而单路（含首字节较慢的冷启动）在暖场后正常。
+
+**根因（源码定位，运行时侧）**：
+
+```c
+/* deps/libwebsockets/lib/core/context.c:1176 —— 上下文超时默认值 */
+context->timeout_secs = 15;
+
+/* deps/libwebsockets/lib/roles/http/client/client-http.c:340 —— 请求体发出后开始计时 */
+lws_set_timeout(wsi, PENDING_TIMEOUT_AWAITING_SERVER_RESPONSE,
+        (int)wsi->a.context->timeout_secs);
+```
+
+txiki.js 自身（`src/`）从不设置 `timeout_secs`，也没有暴露给 JS 调用方的接口 ⇒ **15 秒是硬上限**，
+且只在「等待响应头」阶段计时（响应体流式传输不受该值约束）。
+
+**影响面**：后端（本次为百度 dlink 冷启动/限速）响应头慢于 15 秒时，该请求必然失败；并发请求会排队，
+先超限的一路先失败。这解释了 D03（并发 GET）与 D03b（并发 PUT）在两个套件轮次中的间歇失败。
+
+**处置**：**不改码、不升包**（运行时内部常量，调用方无法设置）。套件把该形态按已归因受限形态记 `SKIP`
+（`SKIP::` 机制），但状态码/内容不符仍判 `FAIL`；并补 D03c（并发两路 PROPFIND，不触达 CDN）
+独立证明代理的并发处理能力。逐次结果见 `tests/run-2026-09-15.md`。

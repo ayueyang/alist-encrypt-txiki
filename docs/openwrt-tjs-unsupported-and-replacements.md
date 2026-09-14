@@ -10,7 +10,7 @@
 - OpenWrt：`25.12.5 / armsr / armv8 / aarch64_generic`
 - txiki.js：`v26.6.0-r3`，guest 执行器为 `/usr/bin/tjs`
 - 应用包：`alist-encrypt-tjs-0.3.0-r9.apk`（md5 `ae7189e7…`；本表于 r3 首次验收，r6–r9 复验未改变任何结论；历史包 r1–r8 并存，r8 与 2026-09-13 修复后的源码不再匹配，仅供回溯）
-- 验收日期：`2026-09-11`（首次）／`2026-09-12`–`09-13`（r6–r8 复验）／`2026-09-13`（r9 源码审查修复，见 `porting-code-review.md`；同日完成 r9 的 ARM64 guest 复跑 38 项 30/8，见 `tests/run-2026-09-13.md` R-35）
+- 验收日期：`2026-09-11`（首次）／`2026-09-12`–`09-13`（r6–r8 复验）／`2026-09-13`（r9 源码审查修复，见 `porting-code-review.md`；同日完成 r9 的 ARM64 guest 复跑 38 项 30/8，见 `tests/run-2026-09-13.md` R-35）／`2026-09-15`（r10 的 ARM64 guest 全量实测：套件扩为 48 项，`45/0/3`，见 `tests/run-2026-09-15.md` R-42；本轮登记 AList 侧「跨目录 MOVE 撞名」限制与运行时 **C-26**）
 
 ## 总表
 
@@ -72,6 +72,28 @@ AList 在本次 QEMU user networking 场景返回的下载地址 host 可达，�
 ### 外部 CDN 资源
 
 浏览器验收中配置页和 AList 代理页均可加载并完成登录。AList 页面引用的外部图片/CDN 请求在纯内网环境失败，例如 `cdn.jsdelivr.net` 和第三方图片地址。它们不是 `alist-encrypt` 代理主流程，也没有被伪装成成功；最终验收记录保留该浏览器请求失败限制。
+
+### AList WebDAV 跨目录 MOVE 的同名限制（AList/驱动侧，非本适配层）
+
+AList 的 `BaiduNetdisk` 驱动 `Move` 实现是：
+
+```go
+data := []base.Json{{"path": srcObj.GetPath(), "dest": dstDir.GetPath(), "newname": srcObj.GetName()}}
+d.manage("move", data)   // POST /xpan/file?method=filemanager&opera=move，ondup="fail"，async="0"
+```
+
+即：**跨目录移动时不向驱动传目标名**（改用源文件名落实体），且重名策略为 `ondup=fail`。因此当目标目录已存在同名文件（加密规则下即**密文同名**）时，百度 API 返回 `errno 12`，AList 以 `500 Internal Server Error` 结束该 MOVE。改名本身由 AList 的 WebDAV 层在移动后补做，所以「目标无同名」的正常跨目录 MOVE 会得到正确的新文件名。
+
+判定依据（均在真实 AList `xhofe/alist:v3.60.0` + 百度网盘存储上复现）：
+
+| 形态 | 结果 |
+|---|---|
+| 跨目录 MOVE，目标目录**已有**同名文件 | `500`（AList 日志：`req: [https://pan.baidu.com/rest/2.0/xpan/file], errno: 12`） |
+| 同一 MOVE，先删除目标同名文件 | `201`，且目标名正确 |
+| 跨目录 MOVE，目标无同名（明文名、含 `~`/`+` 的密文风格名均测） | `201` |
+| 直连 AList（绕开本代理）复现同一形态 | 与经代理一致（`500`） |
+
+**结论**：这不是本适配层的缺陷，代理只是把客户端的 MOVE 原样改写后转发；同一形态直连 AList 同样失败。**不改代理代码**，在 `api-suite.mjs` 中固化为 D08 用例（含直连对照）以防回归误判。
 
 ## 明确不采用的方案
 

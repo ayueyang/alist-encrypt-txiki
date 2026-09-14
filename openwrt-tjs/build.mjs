@@ -33,6 +33,7 @@ const aliases = new Map([
   ['dotenv', 'dotenv.js'],
   ['console', 'console.js'],
   ['alist-encrypt:fixed-length-fetch', 'fixed-length-fetch.js'],
+  ['alist-encrypt:destination-authority', 'destination-authority.js'],
 ])
 
 const platformPlugin = {

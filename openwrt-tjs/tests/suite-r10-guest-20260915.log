@@ -1,0 +1,243 @@
+API_RULES {"serverHost":"192.168.1.6","serverPort":"15267","https":false,"rules":[{"describe":"my video","enable":true,"encType":"aesctr","encName":false,"encFolder":false,"encSuffix":"","encPath":["encrypt_folder/*","movie_encrypt/*"]}]}
+API_CASE_START A01 应用登录 /enc-api/login
+API_REQ POST /enc-api/login
+API_REQ_DONE POST /enc-api/login 200 56ms
+API_CASE_START A02 错误密码登录被拒绝
+API_REQ POST /enc-api/login
+API_REQ_DONE POST /enc-api/login 200 78ms
+API_CASE_START A03 缺少 token 的请求被拦截
+API_REQ POST /enc-api/getUserInfo
+API_REQ_DONE POST /enc-api/getUserInfo 200 88ms
+API_CASE_START A04 读取当前用户信息
+API_REQ POST /enc-api/getUserInfo
+API_REQ_DONE POST /enc-api/getUserInfo 200 86ms
+API_CASE_START A05 读取 AList 代理配置
+API_REQ POST /enc-api/getAlistConfig
+API_REQ_DONE POST /enc-api/getAlistConfig 200 53ms
+API_CASE_START A06 写入测试加密规则
+API_REQ POST /enc-api/saveAlistConfig
+API_REQ_DONE POST /enc-api/saveAlistConfig 200 84ms
+API_REQ POST /enc-api/getAlistConfig
+API_REQ_DONE POST /enc-api/getAlistConfig 200 57ms
+API_CASE_START A07 目录派生密码编解码往返
+API_REQ POST /enc-api/encodeFoldName
+API_REQ_DONE POST /enc-api/encodeFoldName 200 63ms
+API_REQ POST /enc-api/decodeFoldName
+API_REQ_DONE POST /enc-api/decodeFoldName 200 68ms
+API_CASE_START A08 读取 WebDAV 代理配置
+API_REQ POST /enc-api/getWebdavonfig
+API_REQ_DONE POST /enc-api/getWebdavonfig 200 51ms
+API_CASE_START A09 WebDAV 配置增删改往返
+API_REQ POST /enc-api/getWebdavonfig
+API_REQ_DONE POST /enc-api/getWebdavonfig 200 57ms
+API_REQ POST /enc-api/saveWebdavConfig
+API_REQ_DONE POST /enc-api/saveWebdavConfig 200 56ms
+API_REQ POST /enc-api/getWebdavonfig
+API_REQ_DONE POST /enc-api/getWebdavonfig 200 38ms
+API_REQ POST /enc-api/updateWebdavConfig
+API_REQ_DONE POST /enc-api/updateWebdavConfig 200 52ms
+API_REQ POST /enc-api/delWebdavConfig
+API_REQ_DONE POST /enc-api/delWebdavConfig 200 47ms
+API_REQ POST /enc-api/getWebdavonfig
+API_REQ_DONE POST /enc-api/getWebdavonfig 200 39ms
+API_REQ POST /api/auth/login
+API_REQ_DONE POST /api/auth/login 200 87ms
+API_CASE_START B01 代理列目录 /api/fs/list
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 1605ms
+API_CASE_START B02 代理列子目录 /api/fs/dirs
+API_REQ POST /api/fs/dirs
+API_REQ_DONE POST /api/fs/dirs 200 123ms
+API_CASE_START B03 创建明文顶层隔离目录
+API_REQ POST /api/fs/mkdir
+API_REQ_DONE POST /api/fs/mkdir 200 443ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 592ms
+API_CASE_START B04 创建加密子目录
+API_REQ POST /api/fs/mkdir
+API_REQ_DONE POST /api/fs/mkdir 200 793ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 602ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 510ms
+API_CASE_START B05 加密上传 /api/fs/put
+API_CASE_START B06 云端校验：文件名密文 + 内容密文
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 559ms
+API_REQ POST /api/fs/get
+API_REQ_DONE POST /api/fs/get 200 28ms
+API_CASE_START B07 代理列目录显示明文名
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 755ms
+API_CASE_START B08 获取文件详情 /api/fs/get
+API_REQ POST /api/fs/get
+API_REQ_DONE POST /api/fs/get 200 185ms
+API_CASE_START B09 重定向通道完整解密下载
+API_CASE_START B10 重定向通道 Range 解密下载
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 521ms
+API_REQ POST /api/fs/get
+API_REQ_DONE POST /api/fs/get 200 36ms
+API_CASE_START B11 直链通道 /d 完整解密下载
+API_CASE_START B12 直链通道 /d Range 解密下载
+API_CASE_START B13 直链通道 /p 解密下载
+API_CASE_START B14 重命名 /api/fs/rename
+API_REQ POST /api/fs/rename
+API_REQ_DONE POST /api/fs/rename 200 515ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 705ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 560ms
+API_CASE_START B15 复制 /api/fs/copy
+API_REQ POST /api/fs/mkdir
+API_REQ_DONE POST /api/fs/mkdir 200 693ms
+API_REQ POST /api/fs/copy
+API_REQ_DONE POST /api/fs/copy 200 937ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 592ms
+API_CASE_START B16 移动 /api/fs/move
+API_REQ POST /api/fs/mkdir
+API_REQ_DONE POST /api/fs/mkdir 200 609ms
+API_REQ POST /api/fs/move
+API_REQ_DONE POST /api/fs/move 200 798ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 563ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 390ms
+API_CASE_START B17 明文路径透传（负向验证）
+API_REQ POST /api/fs/mkdir
+API_REQ_DONE POST /api/fs/mkdir 200 478ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 513ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 480ms
+API_CASE_START B18 删除文件 /api/fs/remove
+API_REQ POST /api/fs/remove
+API_REQ_DONE POST /api/fs/remove 200 873ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 332ms
+API_CASE_START B19 大文件并发上传（R-25 回归守护）
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 526ms
+API_CASE_START C01 WebDAV PROPFIND 根目录
+API_CASE_START C02 WebDAV PUT 加密上传
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 478ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 525ms
+API_CASE_START C03 WebDAV PROPFIND 显示明文名
+API_CASE_START C04 WebDAV GET 完整解密下载
+API_CASE_START C05 WebDAV HEAD 返回明文长度
+API_CASE_START C06 WebDAV Range 解密下载
+API_CASE_START C07 WebDAV COPY（跨目录，含密文名与内容解密复核）
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 931ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 463ms
+API_CASE_START C08 WebDAV MOVE（同目录重命名）
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 562ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 486ms
+API_CASE_START C09 WebDAV DELETE
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 381ms
+API_CASE_START D01 WebDAV MOVE（跨目录）
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 723ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 372ms
+API_CASE_START D02 WebDAV 覆盖上传（同路径 PUT 两次）
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 622ms
+API_CASE_START D03 WebDAV 并发两路下载
+API_CASE_START D03c WebDAV 并发两路 PROPFIND
+API_CASE_START D03b WebDAV 并发两路上传
+API_CASE_START D04 WebDAV PROPFIND depth:0
+API_CASE_START D05 API 目录级重命名 / 移动 / 删除
+API_REQ POST /api/fs/mkdir
+API_REQ_DONE POST /api/fs/mkdir 200 392ms
+API_REQ POST /api/fs/mkdir
+API_REQ_DONE POST /api/fs/mkdir 200 544ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 782ms
+API_REQ POST /api/fs/rename
+API_REQ_DONE POST /api/fs/rename 200 484ms
+API_REQ POST /api/fs/move
+API_REQ_DONE POST /api/fs/move 200 762ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 656ms
+API_REQ POST /api/fs/remove
+API_REQ_DONE POST /api/fs/remove 200 686ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 322ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 559ms
+API_CASE_START D06 WebDAV 文本内容加解密往返（含 CRLF 与中文）
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 600ms
+API_CASE_START D07 AList 受限形态登记：同目录换名 COPY
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 606ms
+API_CASE_START D08 AList 受限形态归因：跨目录 MOVE 撞名（ondup=fail）
+API_REQ POST /api/fs/mkdir
+API_REQ_DONE POST /api/fs/mkdir 200 375ms
+API_REQ POST /api/fs/mkdir
+API_REQ_DONE POST /api/fs/mkdir 200 396ms
+API_REQ POST /api/fs/list
+API_REQ_DONE POST /api/fs/list 200 512ms
+API_REQ POST /api/fs/remove
+API_REQ_DONE POST /api/fs/remove 200 779ms
+API_REQ POST /api/fs/remove
+API_REQ_DONE POST /api/fs/remove 200 858ms
+API_REQ POST /enc-api/saveAlistConfig
+API_REQ_DONE POST /enc-api/saveAlistConfig 200 73ms
+API_CASE PASS A01 应用登录 /enc-api/login :: HTTP 200 token=07d4ebdb…
+API_CASE PASS A02 错误密码登录被拒绝 :: code=500 msg=passwword error
+API_CASE PASS A03 缺少 token 的请求被拦截 :: code=401 msg=user unlogin
+API_CASE PASS A04 读取当前用户信息 :: username=admin version=0.3.0
+API_CASE PASS A05 读取 AList 代理配置 :: passwdList=1 serverHost=192.168.1.6:15267
+API_CASE PASS A06 写入测试加密规则 :: encType=aesctr encPath=["_api_e2e_1789425086505.*"]
+API_CASE PASS A07 目录派生密码编解码往返 :: 前缀_meA+8JX2Uer… → rc4/inner-password
+API_CASE PASS A08 读取 WebDAV 代理配置 :: webdavServer=1
+API_CASE PASS A09 WebDAV 配置增删改往返 :: 新增 / 更新 / 删除均生效
+API_CASE PASS B00 AList 登录（经代理） :: HTTP 200
+API_CASE PASS B01 代理列目录 /api/fs/list :: content=46
+API_CASE PASS B02 代理列子目录 /api/fs/dirs :: dirs=34
+API_CASE PASS B03 创建明文顶层隔离目录 :: 云端目录名保持明文：_api_e2e_1789425086505
+API_CASE PASS B04 创建加密子目录 :: 云端目录名为密文：PK~3OnTdPP22PUJr…
+API_CASE PASS B05 加密上传 /api/fs/put :: HTTP 200
+API_CASE PASS B06 云端校验：文件名密文 + 内容密文 :: 云端名=PbBhPGyItI1FU8d-… 长度=65536 头部=4e5b160a00bf46a065e9f2f06f80fb61
+API_CASE PASS B07 代理列目录显示明文名 :: 显示明文名：中文 sample.txt
+API_CASE PASS B08 获取文件详情 /api/fs/get :: raw_url → http://127.0.0.1/redirect/72e5fa9d-40d6-4538-8113-68e92795018f
+API_CASE PASS B09 重定向通道完整解密下载 :: length=65536 与明文逐字节一致
+API_CASE PASS B10 重定向通道 Range 解密下载 :: 206 length=53191 bytes 12345-65535/65536
+API_CASE PASS B11 直链通道 /d 完整解密下载 :: HTTP 200 length=65536
+API_CASE PASS B12 直链通道 /d Range 解密下载 :: 206 length=53191
+API_CASE PASS B13 直链通道 /p 解密下载 :: HTTP 200 length=65536
+API_CASE PASS B14 重命名 /api/fs/rename :: 代理显示=renamed 文件.txt 云端=mer2KvNXguZeXwzW…
+API_CASE PASS B15 复制 /api/fs/copy :: 目标目录显示：renamed 文件.txt
+API_CASE PASS B16 移动 /api/fs/move :: 移动后目标显示：renamed 文件.txt
+API_CASE PASS B17 明文路径透传（负向验证） :: 云端保持明文名：plain sample.txt
+API_CASE PASS B18 删除文件 /api/fs/remove :: 删除后目录为空
+API_CASE PASS B19 大文件并发上传（R-25 回归守护） :: PUT 10035ms，ping 10/12 正常，云端密文尺寸吻合
+API_CASE PASS C01 WebDAV PROPFIND 根目录 :: HTTP 207 multistatus
+API_CASE PASS C02 WebDAV PUT 加密上传 :: HTTP 201 云端新增 1 个密文文件
+API_CASE PASS C03 WebDAV PROPFIND 显示明文名 :: PROPFIND 明文名：可见目录 | 移动目标 | 复制目标 | dav 样例.txt | renamed 文件.txt | large-r25.bin
+API_CASE PASS C04 WebDAV GET 完整解密下载 :: length=32768 与明文逐字节一致
+API_CASE PASS C05 WebDAV HEAD 返回明文长度 :: content-length=32768
+API_CASE PASS C06 WebDAV Range 解密下载 :: 206 length=31744
+API_CASE PASS C07 WebDAV COPY（跨目录，含密文名与内容解密复核） :: COPY HTTP 201；明文名可见、复制件解密逐字节一致、云端无明文名（6 项）
+API_CASE PASS C08 WebDAV MOVE（同目录重命名） :: HTTP 201 新名=renamed 样例.txt 旧名 404 且内容逐字节一致
+API_CASE PASS C09 WebDAV DELETE :: HTTP 204 目录内已无该文件
+API_CASE PASS D01 WebDAV MOVE（跨目录） :: HTTP 201 源清空、目标=moved 样例.txt、内容逐字节一致
+API_CASE PASS D02 WebDAV 覆盖上传（同路径 PUT 两次） :: PUT 201 → PUT 201，GET 得到第二版（4096 B）
+API_CASE SKIP D03 WebDAV 并发两路下载 :: 并发 GET 至少一路达到 txiki fetch 的 15s 响应头上限（C-26，libwebsockets 默认 timeout_secs=15）：Network request failed: Timed out waiting server reply | Network request failed: Timed out waiting server reply
+API_CASE PASS D03c WebDAV 并发两路 PROPFIND :: 两路 PROPFIND 均 207 且明文名集合一致（8 项：dav 复制目标,dav 样例.txt,large-r25.bin,moved 样例.txt…）
+API_CASE SKIP D03b WebDAV 并发两路上传 :: 并发甲 PUT 达到 txiki fetch 的 15s 响应头上限（C-26，libwebsockets 默认 timeout_secs=15；后端慢时两路排队超过该值）。另一路结果：201
+API_CASE PASS D04 WebDAV PROPFIND depth:0 :: HTTP 207 明文名=dav 样例.txt
+API_CASE PASS D05 API 目录级重命名 / 移动 / 删除 :: mkdir/rename/move/remove 全 200；目录明文名仅在代理侧可见
+API_CASE PASS D06 WebDAV 文本内容加解密往返（含 CRLF 与中文） :: 76 B 文本（CRLF+LF+中文）逐字节往返一致
+API_CASE SKIP D07 AList 受限形态登记：同目录换名 COPY :: HTTP 500 —— AList 侧同目录 COPY 限制（直连 AList 同样 500，非本适配层问题）
+API_CASE PASS D08 AList 受限形态归因：跨目录 MOVE 撞名（ondup=fail） :: 同名冲突经代理与直连 AList 均 500（ondup=fail 归因）；移除目标同名后 2xx 且内容逐字节一致
+API_SUMMARY {"runtime":"openwrt tjs","proxyOrigin":"http://127.0.0.1:5344","alistOrigin":"http://10.0.2.2:5244","rootPath":"/会员","testDir":"/会员/_api_e2e_1789425086505","total":48,"pass":45,"fail":0,"skip":3}

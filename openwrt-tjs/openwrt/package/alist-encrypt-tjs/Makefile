@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=alist-encrypt-tjs
 PKG_VERSION:=0.3.0
-PKG_RELEASE:=9
+PKG_RELEASE:=10
 PKG_LICENSE:=MIT
 PKG_MAINTAINER:=local OpenWrt port
 

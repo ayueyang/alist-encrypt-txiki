@@ -3,8 +3,8 @@
 #   挂载 9p 共享 → 安装运行时依赖与 txiki → 安装应用包 → 修 slirp 网络 → 起服务 → 校验载荷时效。
 #
 # 用法（guest 内）：
-#   sh /mnt/host/tests/guest-deploy.sh              # 默认装 r9
-#   APP_RELEASE=r8 sh /mnt/host/tests/guest-deploy.sh
+#   sh /mnt/host/tests/guest-deploy.sh              # 默认装 r10
+#   APP_RELEASE=r9 sh /mnt/host/tests/guest-deploy.sh
 #
 # 说明：
 #   - 脚本不含任何凭据；AList 端点由 tests/set-alist-endpoint.mjs 另行下发（走进程环境）。
@@ -12,7 +12,7 @@
 #     `$VAR`、`$?` 被外层 shell 吞掉（见 docs/openwrt-guest-runbook.md 第 2 节）。
 
 PKG_DIR=/mnt/host/packages
-APP_RELEASE="${APP_RELEASE:-r9}"
+APP_RELEASE="${APP_RELEASE:-r10}"
 APP_APK="$PKG_DIR/alist-encrypt-tjs-0.3.0-$APP_RELEASE.apk"
 
 echo "=== guest-deploy start (APP_RELEASE=$APP_RELEASE) ==="
@@ -39,8 +39,26 @@ echo "APK_APP_RC=$?"
 echo "GUEST_SERVER_MD5 $(md5sum /usr/lib/alist-encrypt/server.mjs | cut -d' ' -f1)"
 
 echo "--- fix slirp network ---"
-udhcpc -i br-lan -q -n 2>/dev/null
-ip -4 addr show br-lan | grep inet
+# OpenWrt 默认把 lan 配成静态 192.168.1.1/24：没有默认网关、没有 DNS，等于「完全没网」。
+# 后果不只是 ping 不通——套件 C04/C06 依赖 AList 302 之后的 CDN 直链，需要真实外网。
+# 改走 DHCP，从 QEMU slirp 取 10.0.2.15 + 网关 10.0.2.2 + DNS。
+if ip route | grep -q '^default'; then
+  echo "GUEST_DEFAULT_ROUTE_PRESENT"
+else
+  uci set network.lan.proto=dhcp
+  uci -q delete network.lan.ipaddr
+  uci commit network
+  /etc/init.d/network restart
+  sleep 8
+fi
+ip -4 -o addr show br-lan
+ip route
+if ip route | grep -q '^default'; then
+  echo "GUEST_NET_OK"
+else
+  echo "GUEST_NET_NO_DEFAULT_ROUTE"
+fi
+wget -q -O /dev/null -T 10 http://www.baidu.com && echo "GUEST_WAN_OK" || echo "GUEST_WAN_UNREACHABLE"
 
 echo "--- restart service ---"
 /etc/init.d/alist-encrypt restart

@@ -63,15 +63,15 @@ same business logic, now deployable on OpenWrt routers and on desktop Linux / Wi
 
 | 设备架构 | 运行时（先装） | 应用包（后装） |
 |---|---|---|
-| `aarch64_generic` | `txiki-js-26.6.0-r3-aarch64.apk` | `alist-encrypt-tjs-0.3.0-r9.apk` |
-| `x86_64` | `txiki-js-26.6.0-r4-x86_64.apk` | `alist-encrypt-tjs-0.3.0-r9.apk`（同一文件） |
+| `aarch64_generic` | `txiki-js-26.6.0-r3-aarch64.apk` | `alist-encrypt-tjs-0.3.0-r10.apk` |
+| `x86_64` | `txiki-js-26.6.0-r4-x86_64.apk` | `alist-encrypt-tjs-0.3.0-r10.apk`（同一文件） |
 
 从 [Releases](https://github.com/ayueyang/alist-encrypt-txiki/releases) 下载对应文件并上传到设备：
 
 ```sh
-# 文件名以最新 Release 为准，下例为 aarch64 + 0.3.0-r9
+# 文件名以最新 Release 为准，下例为 aarch64 + 0.3.0-r10
 apk add --allow-untrusted /tmp/txiki-js-26.6.0-r3-aarch64.apk
-apk add --allow-untrusted /tmp/alist-encrypt-tjs-0.3.0-r9.apk
+apk add --allow-untrusted /tmp/alist-encrypt-tjs-0.3.0-r10.apk
 ```
 
 > 安装前请核对 sha256/md5 与 Release 说明一致（Release 附 `SHA256SUMS` / `MD5SUMS`）。
@@ -98,15 +98,15 @@ uci commit alist-encrypt
 
 | 平台 | 架构 | 下载 |
 |---|---|---|
-| Linux | x86_64 | `alist-encrypt-txiki-0.3.0-r9-linux-x86_64.tar.gz` |
-| Linux | aarch64 / ARM64 | `alist-encrypt-txiki-0.3.0-r9-linux-aarch64.tar.gz` |
-| Windows | x86_64 | `alist-encrypt-txiki-0.3.0-r9-windows-x86_64.zip` |
+| Linux | x86_64 | `alist-encrypt-txiki-0.3.0-r10-linux-x86_64.tar.gz` |
+| Linux | aarch64 / ARM64 | `alist-encrypt-txiki-0.3.0-r10-linux-aarch64.tar.gz` |
+| Windows | x86_64 | `alist-encrypt-txiki-0.3.0-r10-windows-x86_64.zip` |
 
 包内已含对应平台的 `tjs` 运行时、应用文件与启动脚本，**不需要另装 Node**。
 
 ```sh
-tar xzf alist-encrypt-txiki-0.3.0-r9-linux-x86_64.tar.gz
-cd alist-encrypt-txiki-0.3.0-r9-linux-x86_64
+tar xzf alist-encrypt-txiki-0.3.0-r10-linux-x86_64.tar.gz
+cd alist-encrypt-txiki-0.3.0-r10-linux-x86_64
 
 vi config.json            # 填 AList 地址与端口
 chmod +x tjs start.sh     # 解压后若丢了执行权限
@@ -212,6 +212,12 @@ diff -rq /tmp/upstream/enc-webui enc-webui                                # 应�
 - **Windows 官方二进制缺少 WebDAV 方法**：Windows 包内的 `tjs.exe` 是 txiki.js 官方原版，未含该补丁；
   需要 WebDAV 请改用本项目的 Linux 包或 OpenWrt 包，或自行编译带补丁的 txiki.js。
 - **纯内网环境下 AList 页面加载外部 CDN 图片会失败**：属上游页面行为，非代理问题。
+- **等待响应头有 15 秒上限（C-26）**：运行时（txiki.js 内置 libwebsockets 的默认上下文超时）在发出请求后
+  等待响应头超过 15 秒即放弃该请求。后端（例如百度网盘下载直链冷启动）响应慢时，并发请求会排队并可能
+  先撞上该上限，表现为 `Network request failed: Timed out waiting server reply`。属运行时边界，代码层无法配置。
+- **跨目录「移动」到已有同名文件的目录会失败**：AList 的百度网盘驱动在移动时使用**源文件名**且重名策略为
+  失败（`ondup=fail`），加密规则下同名即密文同名，因此目标目录已有同名文件时移动会返回 500。
+  先删掉目标目录里的同名文件即可正常移动。该行为在直连 AList（绕开本代理）时同样出现，属 AList 侧限制。
 
 以上限制均未被伪装成已支持。逐项原因与替代方案见
 [docs/openwrt-tjs-unsupported-and-replacements.md](docs/openwrt-tjs-unsupported-and-replacements.md)。

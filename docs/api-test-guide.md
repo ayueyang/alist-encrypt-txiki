@@ -93,7 +93,7 @@ PROXY_KIND=upstream ALIST_PASSWORD='<secret>' node work/api-harness/run-real.mjs
   不要在有生产流量的实例上运行。
 - `PROXY_KIND=adapted`（默认）验证适配版，`upstream` 用未经修改的上游 Node 原版做参照。
 
-## 5. 用例清单（38 项）
+## 5. 用例清单（48 项）
 
 ### A 组：应用自身 API（9 项）
 
@@ -138,8 +138,26 @@ PROXY_KIND=upstream ALIST_PASSWORD='<secret>' node work/api-harness/run-real.mjs
 | C04 | WebDAV GET 完整解密下载 |
 | C05 | WebDAV HEAD 返回明文长度 |
 | C06 | WebDAV Range 解密下载 |
-| C07–C08 | WebDAV COPY / MOVE 后云端不出现明文名 |
+| C07 | WebDAV COPY（跨目录，含密文名与内容解密复核） |
+| C08 | WebDAV MOVE（同目录重命名） |
 | C09 | WebDAV DELETE |
+
+### D 组：补充覆盖与受限形态归因（10 项）
+
+这一组补 A/B/C 三组没走到的形态，并把已归因的 AList 侧受限形态固化成用例，防止回归时被误判成本适配层缺陷。
+
+| 编号 | 覆盖点 |
+| --- | --- |
+| D01 | WebDAV MOVE（跨目录）：源清空 + 目标为明文新名 + 内容逐字节一致（源名不得与目标目录已有文件重名，见 D08） |
+| D02 | 覆盖上传（同路径 PUT 两次）：云端只留一份密文，GET 得到第二版 |
+| D03 | 并发两路 GET：内容/状态码不符判 FAIL；若后端慢到连暖场单路都撞上 C-26 的 15s 响应头上限，则记 SKIP（无法测量） |
+| D03c | 并发两路 PROPFIND：不触达 CDN，独立证明代理能并行处理多请求（比对解码后的明文名集合，不比响应体字节） |
+| D03b | 并发两路 PUT（204800 / 131072 B）：两路密文名与内容互不串扰；超 C-26 上限时记 SKIP |
+| D04 | PROPFIND depth:0（客户端 exists 探测）返回明文名 |
+| D05 | API 目录级 mkdir / rename / move / remove，目录明文名仅在代理侧可见 |
+| D06 | 文本内容加解密往返（CRLF + LF + 中文），逐字节一致 |
+| D07 | 受限形态登记：同目录换名 COPY 在 AList 侧 500（直连 AList 同样 500）→ SKIP |
+| D08 | 受限形态归因：跨目录 MOVE 撞名。AList 的 `BaiduNetdisk` 驱动 Move 为 `newname=源文件名 + ondup=fail`，目标目录已有同名（密文同名）时百度返回 `errno 12` → 500；本用例同时验证「经代理」与「直连 AList」均 500，并在移除目标同名文件后确认同一 MOVE 恢复 2xx |
 
 ## 6. 判读方式
 
@@ -155,6 +173,10 @@ API_SUMMARY {"runtime":"openwrt tjs","total":37,"pass":37,"fail":0,"skip":0}
   `encName`/`encFolder` 是否为 `true`、`encPath` 是否与请求路径形状匹配。
 - 退出码：`0` 全部通过；`1` 有用例失败；`2` 前置失败（登录失败、缺凭据等）。
 - 断言一律通过 `assert()` 抛出。用例失败时 `detail` 直接给出实际值，不用"把失败描述当字符串返回"的写法。
+- **`SKIP` 的两种来源**：① `API_SKIP_WEBDAV=1`（运行时无 WebDAV 方法时跳过 C 组）；
+  ② 断言抛出的错误消息以 `SKIP::` 开头——表示"已归因的受限形态，非本适配层缺陷"，例如
+  C-26（txiki fetch 等待响应头 15s 上限，后端慢时并发请求排队超限）、D07（AList 侧同目录 COPY 限制）。
+  SKIP 只对**已归因的形态**生效：一旦状态码/内容变了（例如 500 变成 502 或内容不一致），仍会落到 `FAIL`。
 
 ### WebDAV 的判读注意
 

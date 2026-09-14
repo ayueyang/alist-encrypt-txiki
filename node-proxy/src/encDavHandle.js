@@ -9,6 +9,9 @@ import { XMLParser } from 'fast-xml-parser'
 import FlowEnc from '@/utils/flowEnc'
 import { getWebdavFileInfo } from '@/utils/webdavClient'
 import { log } from 'console'
+// 运行时边界适配：Destination 的 authority 必须与本运行时实际发出的 Host 头一致，
+// 否则 AList 的 WebDAV COPY/MOVE 会直接返回 502（见该模块内的实测记录）。
+import { destinationAuthority } from 'alist-encrypt:destination-authority'
 
 async function sleep(time) {
   return new Promise((resolve) => {
@@ -261,10 +264,13 @@ const preHandle = async (ctx, next) => {
     const userName = destUrl.username
     // destination，获取/dav/xxx的路径
     const pathname = destUrl.pathname
+    // 用「运行时实际会发出的 Host」来拼 authority：txiki 的 Host 头不带端口，
+    // 而 AList 会拿它与 Destination 做字符串比较，不一致即 502。
+    const authority = destinationAuthority(request.headers.host)
     if (userName) {
-      request.headers.destination = `http://${userName}@${request.headers.host}` + pathname
+      request.headers.destination = `http://${userName}@${authority}` + pathname
     } else {
-      request.headers.destination = `http://${request.headers.host}` + pathname
+      request.headers.destination = `http://${authority}` + pathname
     }
     logger.info('@@move_dest', destination, request.headers.destination)
     const body = await httpClient(request, response)

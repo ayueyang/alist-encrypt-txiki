@@ -67,14 +67,16 @@ node build.mjs        # 产出 dist/server.mjs、dist/prga-worker.mjs、dist/pub
 
 ### Windows（PowerShell / Git Bash）
 
-```bash
-cd <run>
-ALIST_ENCRYPT_HOME="<run 的 Windows 绝对路径>" \
-ALIST_ENCRYPT_PROGRAM_DIR="<run 的 Windows 绝对路径>" \
-<txiki目录>\tjs.exe run server.mjs
+PowerShell 须用 `$env:` 设置进程环境变量并用 `&` 调用可执行文件；不要直接粘贴 Bash 的 `VAR=value \` 写法：
+
+```powershell
+Set-Location '<run 的 Windows 绝对路径>'
+$env:ALIST_ENCRYPT_HOME = (Get-Location).Path
+$env:ALIST_ENCRYPT_PROGRAM_DIR = $env:ALIST_ENCRYPT_HOME
+& '<txiki 目录>\tjs.exe' run .\server.mjs
 ```
 
-实测样例（端口 5444，避让被占用的默认端口）：
+Git Bash 实测样例（R-33，端口 5444；宿主 PowerShell 的 PATH 不含 `sh` 时须显式用 `& "C:\Program Files\Git\bin\sh.exe"` 启动脚本）：
 
 ```bash
 cd /d/desktop-txiki/win-run

@@ -87,11 +87,12 @@ export async function runApiSuite(options) {
   } = options
 
   assert(alistUsername && alistPassword, 'ALIST_USERNAME and ALIST_PASSWORD are required')
+  assert(rootPath === '/会员', 'API_E2E_ROOT must be /会员; refuse to write outside the isolated test mount')
 
   const alistUrl = new URL(alistOrigin)
 
   // ---------------------------------------------------------------- 用例数据
-  const stamp = Date.now()
+  const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
   const plainDir = `_api_e2e_${stamp}`
   const plainFolder = '可见目录'
   const plainFile = '中文 sample.txt'
@@ -100,6 +101,8 @@ export async function runApiSuite(options) {
   const copyFolder = '复制目标'
   const moveFolder = '移动目标'
   const encryptPassword = 'api-e2e-password'
+  const testRuleName = `api-e2e-${stamp}`
+  const webdavName = `api-e2e-webdav-${stamp}`
   const encType = 'aesctr'
 
   const testDir = `${rootPath}/${plainDir}`
@@ -135,6 +138,7 @@ export async function runApiSuite(options) {
   let createdRoot = false
   let createdFolder = false
   let createdPlainArea = false
+  let webdavTouched = false
 
   function pass(id, name, purpose, detail) {
     results.push({ id, name, purpose, status: 'PASS', detail })
@@ -146,9 +150,9 @@ export async function runApiSuite(options) {
 
   // 统一执行：action 抛错即失败；verify 抛错即断言失败
   async function step(id, name, purpose, action, verify) {
-    // API_SKIP_WEBDAV=1：跳过 C 组（运行时 LWS 无 WebDAV 方法补丁时，
+    // API_SKIP_WEBDAV=1：跳过 C 组及依赖 WebDAV 的 D 组（无 LWS 方法补丁时
     // 客户端 fetch PROPFIND 会永久挂死——例如官方 Windows/macOS tjs 二进制）
-    if (skipWebdav && id.startsWith('C')) {
+    if (skipWebdav && (id.startsWith('C') || ['D01', 'D02', 'D03', 'D03c', 'D03b', 'D04', 'D06', 'D07', 'D08'].includes(id))) {
       console.log(`API_CASE_START ${id} ${name}`)
       record(id, name, purpose, 'SKIP', 'API_SKIP_WEBDAV=1')
       return null
@@ -206,7 +210,8 @@ export async function runApiSuite(options) {
   }
 
   async function download(origin, downloadPath, headers = {}) {
-    const response = await fetch(`${origin}${encodeURI(downloadPath)}`, { headers })
+    // URL 会只编码未编码的路径，不会把已有的 %E4 或 sign 查询串二次编码。
+    const response = await fetch(new URL(downloadPath, origin).href, { headers })
     const bytes = new Uint8Array(await response.arrayBuffer())
     return { status: response.status, headers: response.headers, bytes }
   }
@@ -222,7 +227,7 @@ export async function runApiSuite(options) {
         appToken = value.data?.data?.jwtToken || ''
         assert(appToken, `未返回 jwtToken：HTTP ${value.status} ${value.text.slice(0, 160)}`)
         appHeaders = { authorizetoken: appToken }
-        return `HTTP ${value.status} token=${appToken.slice(0, 8)}…`
+        return `HTTP ${value.status} token=present`
       },
     )
     assert(appToken, 'A01 登录失败，后续用例无法继续')
@@ -278,8 +283,10 @@ export async function runApiSuite(options) {
       'A06',
       '写入测试加密规则',
       '把隔离目录纳入加密路径，后续所有加密用例依赖该规则',
-      () =>
-        requestJson(
+      () => {
+        // 请求发出后即使响应丢失，也必须在 finally 尝试恢复快照。
+        configured = true
+        return requestJson(
           proxyOrigin,
           'POST',
           '/enc-api/saveAlistConfig',
@@ -289,9 +296,10 @@ export async function runApiSuite(options) {
             serverPort: alistUrl.port || (alistUrl.protocol === 'https:' ? '443' : '80'),
             https: alistUrl.protocol === 'https:',
             passwdList: [
+              ...(originalConfig.passwdList || []),
               {
                 password: encryptPassword,
-                describe: 'api-e2e',
+                describe: testRuleName,
                 encType,
                 enable: true,
                 encName: true,
@@ -302,14 +310,14 @@ export async function runApiSuite(options) {
             ],
           },
           appHeaders,
-        ),
+        )
+      },
       async (value) => {
         assert(apiCode(value) === 200, `保存失败 code=${apiCode(value)} msg=${value.data?.msg}`)
-        configured = true
         await delay(200)
         const readBack = await requestJson(proxyOrigin, 'POST', '/enc-api/getAlistConfig', undefined, appHeaders)
-        const rule = apiBody(readBack)?.passwdList?.[0]
-        assert(rule?.encName && rule?.encFolder, `回读配置未包含 encName/encFolder：${readBack.text.slice(0, 160)}`)
+        const rule = apiBody(readBack)?.passwdList?.find((item) => item.describe === testRuleName)
+        assert(rule?.encName && rule?.encFolder, `回读配置未包含测试规则 encName/encFolder：${readBack.status}`)
         return `encType=${rule.encType} encPath=${JSON.stringify(rule.encPath)}`
       },
     )
@@ -358,22 +366,30 @@ export async function runApiSuite(options) {
       'WebDAV 配置增删改往返',
       '确认 saveWebdavConfig / updateWebdavConfig / delWebdavConfig 接口闭环',
       async () => {
-        const listWebdav = async () => apiBody(await requestJson(proxyOrigin, 'POST', '/enc-api/getWebdavonfig', undefined, appHeaders)) || []
-        // 环境可能带预置条目（例如出厂配置的 other-webdav），断言以「自建条目被删净」与「总数复原」为准
-        const countBefore = (await listWebdav()).length
+        const listWebdav = async () => {
+          const response = await requestJson(proxyOrigin, 'POST', '/enc-api/getWebdavonfig', undefined, appHeaders)
+          assert(apiCode(response) === 200 && Array.isArray(apiBody(response)), `WebDAV 配置读取失败 HTTP ${response.status}`)
+          return apiBody(response)
+        }
+        // 使用单次随机名称，不碰环境里已有的 WebDAV 配置；失败时也由 finally 按名称核对回收。
+        const beforeList = await listWebdav()
+        assert(!beforeList.some((item) => item.name === webdavName), `测试项名称已存在：${webdavName}`)
+        const countBefore = beforeList.length
         const entry = {
-          name: 'api-e2e-webdav',
+          name: webdavName,
           describe: 'api-e2e',
-          path: '^/api_e2e_dav/*',
+          path: `^/api_e2e_dav_${stamp}/*`,
           enable: false,
           serverHost: alistUrl.hostname,
           serverPort: alistUrl.port || '80',
           https: false,
-          passwdList: [{ password: 'x', encType, enable: false, encName: false, encPath: ['api_e2e_dav/*'] }],
+          passwdList: [{ password: 'x', encType, enable: false, encName: false, encPath: [`api_e2e_dav_${stamp}/*`] }],
         }
+        webdavTouched = true
         const saved = await requestJson(proxyOrigin, 'POST', '/enc-api/saveWebdavConfig', entry, appHeaders)
-        const created = (await listWebdav()).find((item) => item.name === 'api-e2e-webdav')
-        assert(created, `保存后未找到新条目：${saved.text.slice(0, 160)}`)
+        assert(apiCode(saved) === 200, `WebDAV 保存失败 HTTP ${saved.status} code=${apiCode(saved)}`)
+        const created = (await listWebdav()).find((item) => item.name === webdavName)
+        assert(created?.id, `保存后未找到新条目或 ID：HTTP ${saved.status}`)
         const updated = await requestJson(proxyOrigin, 'POST', '/enc-api/updateWebdavConfig', { ...created, describe: 'api-e2e-updated' }, appHeaders)
         const updatedList = apiBody(updated) || (await listWebdav())
         await requestJson(proxyOrigin, 'POST', '/enc-api/delWebdavConfig', { id: created.id }, appHeaders)
@@ -401,7 +417,12 @@ export async function runApiSuite(options) {
       throw new Error('AList login through proxy failed')
     }
     authHeaders = { authorization: alistToken }
-    pass('B00', 'AList 登录（经代理）', '后续全部 AList 用例的前置条件', `HTTP ${alistLogin.status}`)
+    // 写入前直连真实 AList 检查父目录与两处随机名称；碰撞时绝不删除已有目录。
+    const initialList = await listNames(alistOrigin, authHeaders, rootPath)
+    assert(apiCode(initialList.result) === 200, `隔离父目录不可列出：HTTP ${initialList.result.status} code=${apiCode(initialList.result)}`)
+    assert(Number(initialList.result.data?.data?.total) <= 200, '父目录超过单页 200 项，不能安全确认隔离名称未占用')
+    assert(!initialList.names.includes(plainDir) && !initialList.names.includes(plainAreaName), '隔离名称已存在，拒绝写入')
+    pass('B00', 'AList 登录（经代理）', '后续全部 AList 用例的前置条件', `HTTP ${alistLogin.status}，隔离名称未占用`)
 
     await step(
       'B01',
@@ -431,10 +452,12 @@ export async function runApiSuite(options) {
       'B03',
       '创建明文顶层隔离目录',
       '建立隔离空间，并确认未命中 encPath 的路径保持明文（文件夹名加密的负向基准）',
-      () => requestJson(proxyOrigin, 'POST', '/api/fs/mkdir', { path: testDir }, authHeaders),
+      () => {
+        createdRoot = true
+        return requestJson(proxyOrigin, 'POST', '/api/fs/mkdir', { path: testDir }, authHeaders)
+      },
       async (value) => {
         assert(apiCode(value) === 200, `code=${apiCode(value)} msg=${value.data?.message}`)
-        createdRoot = true
         const { names } = await listNames(alistOrigin, authHeaders, rootPath)
         assert(names.includes(plainDir), `云端未出现明文目录 ${plainDir}，实际 ${names.join(',') || '(空)'}`)
         return `云端目录名保持明文：${plainDir}`
@@ -581,8 +604,10 @@ export async function runApiSuite(options) {
       assert(names.length > 0, '云端加密目录为空，无法获取直链签名')
       const cloudName = names.find((name) => name.endsWith('.txt')) || names[0]
       const getResult = await requestJson(alistOrigin, 'POST', '/api/fs/get', { path: `${testDir}/${cloudFolder}/${cloudName}` }, authHeaders)
-      const sign = apiBody(getResult)?.sign
-      assert(sign, `AList 未返回 sign：${getResult.text.slice(0, 160)}`)
+      const detail = apiBody(getResult)
+      // 真 AList 的 data.sign 与模拟后端的 raw_url 查询串均可提供同一签名；不回显完整直链。
+      const sign = detail?.sign || (detail?.raw_url ? new URL(detail.raw_url, alistOrigin).searchParams.get('sign') : '')
+      assert(sign, `AList 未返回可用 sign：HTTP ${getResult.status} code=${apiCode(getResult)}`)
       return `?sign=${encodeURIComponent(sign)}`
     }
     const directQuery = await signedDirectQuery()
@@ -685,9 +710,9 @@ export async function runApiSuite(options) {
       '明文路径透传（负向验证）',
       '确认未命中 encPath 的目录不会被误加密',
       async () => {
+        createdPlainArea = true
         const mkdir = await requestJson(proxyOrigin, 'POST', '/api/fs/mkdir', { path: plainAreaPath }, authHeaders)
         assert(apiCode(mkdir) === 200, `创建明文目录失败 code=${apiCode(mkdir)} msg=${mkdir.data?.message}`)
-        createdPlainArea = true
         const response = await fetch(`${proxyOrigin}/api/fs/put`, {
           method: 'PUT',
           headers: { ...authHeaders, 'content-type': 'application/octet-stream', 'file-path': encodeURIComponent(plainFilePath) },
@@ -786,13 +811,19 @@ export async function runApiSuite(options) {
           // 只接受 C-26 这一种已知形态；其余网络错误照旧 FAIL
           assert(/Timed out waiting server reply/.test(value.uploadError), `上传网络错误：${value.uploadError}`)
         }
-        assert(value.pings >= 5, `并发探测样本过少：${value.pings}`)
-        // R-25 的回归指纹是「上传期间事件循环被阻塞」——先判这一条，再判落盘结果
+        // R-25 的回归指纹是「上传期间事件循环被阻塞」；先验证样本质量和落盘，
+        // 模拟后端上传太快时不能把不足 5 个 /ping 样本误记为适配回归。
         assert(value.pingFails <= Math.floor(value.pings / 4), `上传期间 /ping 失败过多：${value.pingFails}/${value.pings}（事件循环被阻塞，R-25 回归）`)
         if (value.uploadError && !value.sizeMatchFound) {
           throw new Error(`SKIP::客户端 ${Math.round(value.uploadMs / 1000)}s 未收到响应头（C-26 15s 上限）后放弃，服务端未完成落盘；/ping ${value.pings - value.pingFails}/${value.pings} 健康，未复发 R-25 自旋`)
         }
         assert(value.sizeMatchFound, `云端未找到尺寸为 ${value.largeSize} 的上传文件（R-25 回归：上传未完成）`)
+        // 单次 /ping 的超时为 4s：短于这个窗口且已落盘的快上传不足 5 个样本，
+        // 只能标为未覆盖；超过 4s 仍采不到 5 个样本才是可疑的事件循环阻塞。
+        if (value.pings < 5 && value.uploadMs < 4000) {
+          throw new Error(`SKIP::上传 ${value.uploadMs}ms 已正确落盘，但只有 ${value.pings} 个 /ping 样本，无法测量 R-25 的事件循环阻塞属性`)
+        }
+        assert(value.pings >= 5, `并发探测样本过少：${value.pings}`)
         if (value.uploadError) {
           return `客户端 ${Math.round(value.uploadMs / 1000)}s 未收到响应头（C-26 15s 上限）；云端密文尺寸吻合、ping ${value.pings - value.pingFails}/${value.pings} 正常 ⇒ 未复发 R-25`
         }
@@ -1106,6 +1137,7 @@ export async function runApiSuite(options) {
           }
         }
         if (!warm) {
+          assert(/Timed out waiting server reply/.test(warmError), `暖场单路 GET 失败（非 C-26 超时）：${warmError}`)
           throw new Error(`SKIP::暖场单路 GET 未能在 15s 内取得响应头（后端慢，非并发放大）：${warmError}`)
         }
         const settled = await Promise.all(
@@ -1353,9 +1385,10 @@ export async function runApiSuite(options) {
         await requestJson(alistOrigin, 'POST', '/api/fs/mkdir', { path: `${testDir}/${directB}` }, authHeaders)
         const alistUrl = new URL(alistOrigin)
         const alistDavUrl = (path) => `${alistOrigin}${encodeURI(path)}`
-        // URL.host 带端口（10.0.2.2:5244），而该运行时的 Host 头不带端口 —— AList 做字符串比较，
-        // 带端口的 Destination 会被判为跨服务器而直接 502；必须用 hostname 拼 authority。
-        const alistDavDestination = (path) => `${alistUrl.protocol}//${alistUrl.hostname}${encodeURI(path)}`
+        // 直连请求的 Host 必须与 Destination 完全相同：txiki fetch 不带端口，
+        // Node 对照台的 fetch 则带端口；这里测 AList 的撞名语义，不能误判为 502。
+        const directAuthority = typeof tjs === 'undefined' ? alistUrl.host : alistUrl.hostname
+        const alistDavDestination = (path) => `${alistUrl.protocol}//${directAuthority}${encodeURI(path)}`
         for (const dir of [directA, directB]) {
           const put = await fetch(alistDavUrl(`/dav${testDir}/${dir}/${directFile}`), { method: 'PUT', headers: davHeaders, body: davPayload })
           await put.text()
@@ -1401,22 +1434,68 @@ export async function runApiSuite(options) {
       },
     )
   } finally {
-    // ---------------------------------------------------------- 清理与恢复
-    if (alistToken) {
-      for (const [flag, name] of [
-        [createdRoot, plainDir],
-        [createdPlainArea, plainAreaName],
-      ]) {
-        if (!flag) continue
-        try {
-          await requestJson(proxyOrigin, 'POST', '/api/fs/remove', { dir: rootPath, names: [name] }, { authorization: alistToken })
-        } catch {}
+    // ---------------------------------------------------------- 清理与恢复（独立断言，不把失败吞掉）
+    const cleanupStep = async (id, name, action) => {
+      try {
+        const detail = await action()
+        pass(id, name, '清理并回读验证测试副作用', detail)
+        console.log(`API_CLEANUP PASS ${id} ${detail}`)
+      } catch (error) {
+        const detail = String(error?.message || error)
+        record(id, name, '清理并回读验证测试副作用', 'FAIL', detail)
+        console.error(`API_CLEANUP FAIL ${id} ${detail}`)
       }
     }
+    if (alistToken) {
+      for (const [flag, name, id] of [
+        [createdRoot, plainDir, 'Z01'],
+        [createdPlainArea, plainAreaName, 'Z02'],
+      ]) {
+        if (!flag) continue
+        await cleanupStep(id, '直连 AList 删除隔离目录', async () => {
+          const before = await listNames(alistOrigin, authHeaders, rootPath)
+          assert(apiCode(before.result) === 200 && Number(before.result.data?.data?.total) <= 200, `删除前无法完整列出 ${rootPath}`)
+          if (before.names.includes(name)) {
+            const removed = await requestJson(alistOrigin, 'POST', '/api/fs/remove', { dir: rootPath, names: [name] }, authHeaders)
+            assert(apiCode(removed) === 200, `删除 ${name} 失败 HTTP ${removed.status} code=${apiCode(removed)}`)
+          }
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            const after = await listNames(alistOrigin, authHeaders, rootPath)
+            assert(apiCode(after.result) === 200 && Number(after.result.data?.data?.total) <= 200, `删除后无法完整列出 ${rootPath}`)
+            if (!after.names.includes(name)) return `${rootPath}/${name} 已不存在`
+            await delay(1000)
+          }
+          throw new Error(`隔离目录仍残留：${rootPath}/${name}`)
+        })
+      }
+    }
+    if (webdavTouched && appToken) {
+      await cleanupStep('Z03', '回收测试 WebDAV 配置', async () => {
+        const listWebdav = async () => {
+          const response = await requestJson(proxyOrigin, 'POST', '/enc-api/getWebdavonfig', undefined, appHeaders)
+          assert(apiCode(response) === 200 && Array.isArray(apiBody(response)), `WebDAV 配置读取失败 HTTP ${response.status}`)
+          return apiBody(response)
+        }
+        const matches = (await listWebdav()).filter((item) => item.name === webdavName)
+        assert(matches.length <= 1, `测试 WebDAV 配置出现重复名称：${webdavName}`)
+        for (const item of matches) {
+          assert(item.id, `测试 WebDAV 配置缺少 ID：${webdavName}`)
+          const deleted = await requestJson(proxyOrigin, 'POST', '/enc-api/delWebdavConfig', { id: item.id }, appHeaders)
+          assert(apiCode(deleted) === 200, `WebDAV 配置删除失败 HTTP ${deleted.status} code=${apiCode(deleted)}`)
+        }
+        assert(!(await listWebdav()).some((item) => item.name === webdavName), `测试 WebDAV 配置仍残留：${webdavName}`)
+        return `${webdavName} 已不存在`
+      })
+    }
     if (configured && appToken && originalConfig) {
-      try {
-        await requestJson(proxyOrigin, 'POST', '/enc-api/saveAlistConfig', originalConfig, { authorizetoken: appToken })
-      } catch {}
+      await cleanupStep('Z04', '恢复并核对原 AList 代理配置', async () => {
+        const restored = await requestJson(proxyOrigin, 'POST', '/enc-api/saveAlistConfig', originalConfig, appHeaders)
+        assert(apiCode(restored) === 200, `代理配置恢复失败 HTTP ${restored.status} code=${apiCode(restored)}`)
+        await delay(200)
+        const readBack = await requestJson(proxyOrigin, 'POST', '/enc-api/getAlistConfig', undefined, appHeaders)
+        assert(apiCode(readBack) === 200 && JSON.stringify(apiBody(readBack)) === JSON.stringify(originalConfig), '原代理配置回读不一致（不打印密码）')
+        return '代理配置与测试前快照一致'
+      })
     }
   }
 

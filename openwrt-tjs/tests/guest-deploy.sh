@@ -62,8 +62,16 @@ wget -q -O /dev/null -T 10 http://www.baidu.com && echo "GUEST_WAN_OK" || echo "
 
 echo "--- restart service ---"
 /etc/init.d/alist-encrypt restart
-sleep 5
-netstat -lntp | grep 5344 || echo "PORT_5344_NOT_LISTENING"
+# QEMU 冷启动 + SQLite 初始化可能超过 5s，等待监听出现后再报部署失败。
+attempt=0
+while [ "$attempt" -lt 15 ]; do
+  if netstat -lntp 2>/dev/null | grep -q ':5344 '; then
+    break
+  fi
+  sleep 3
+  attempt=$((attempt + 1))
+done
+netstat -lntp | grep ':5344 ' || echo "PORT_5344_NOT_LISTENING"
 
 echo "--- guest -> AList reachability ---"
 wget -q -O - -T 5 http://10.0.2.2:5244/ping || echo "ALIST_UNREACHABLE_FROM_GUEST"

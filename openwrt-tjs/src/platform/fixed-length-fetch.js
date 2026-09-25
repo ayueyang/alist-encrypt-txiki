@@ -100,20 +100,24 @@ function responseFromBytes(bytes, method) {
   let body = bytes.slice(offset)
   const transferEncoding = head.headers.get('transfer-encoding') || ''
   const contentLength = head.headers.get('content-length')
-  if (transferEncoding.toLowerCase().split(',').map((item) => item.trim()).includes('chunked')) {
-    body = decodeChunked(body)
-    head.headers.delete('transfer-encoding')
-    head.headers.set('content-length', String(body.byteLength))
-  } else if (contentLength !== null) {
-    const expected = Number(contentLength)
-    if (!Number.isSafeInteger(expected) || expected < 0 || body.byteLength < expected) {
-      throw new Error('Upstream Content-Length is invalid or incomplete')
+  // 304 may advertise the representation length without carrying that body.
+  const noBody = method === 'HEAD' || head.status === 204 || head.status === 205 || head.status === 304
+  if (!noBody) {
+    if (transferEncoding.toLowerCase().split(',').map((item) => item.trim()).includes('chunked')) {
+      body = decodeChunked(body)
+      head.headers.delete('transfer-encoding')
+      head.headers.set('content-length', String(body.byteLength))
+    } else if (contentLength !== null) {
+      const expected = Number(contentLength)
+      if (!Number.isSafeInteger(expected) || expected < 0 || body.byteLength < expected) {
+        throw new Error('Upstream Content-Length is invalid or incomplete')
+      }
+      body = body.slice(0, expected)
     }
-    body = body.slice(0, expected)
   }
 
   head.headers.delete('connection')
-  return new Response(method === 'HEAD' ? null : body, {
+  return new Response(noBody ? null : body, {
     status: head.status,
     statusText: head.statusText,
     headers: head.headers,
@@ -132,6 +136,13 @@ export async function fetchWithKnownLength(url, options) {
     throw new Error('A valid Content-Length is required for fixed-length upload')
   }
   headers.set('host', target.host)
+  // The raw-socket path keeps the port in Host, unlike txiki fetch. Match
+  // Destination to that actual header for body-bearing WebDAV COPY/MOVE.
+  if ((options.method === 'COPY' || options.method === 'MOVE') && headers.has('destination')) {
+    const destination = new URL(headers.get('destination'))
+    destination.host = target.host
+    headers.set('destination', destination.toString())
+  }
   headers.set('connection', 'close')
   headers.set('accept-encoding', 'identity')
   headers.delete('transfer-encoding')

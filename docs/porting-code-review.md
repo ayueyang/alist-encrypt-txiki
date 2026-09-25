@@ -1,5 +1,7 @@
 # 移植代码审查报告（2026-09-13，R-34）
 
+> **时点说明（2026-09-25）**：§1–10 是 R-34/r9 的历史审查，22/29、7 个差异仅在该时点成立。r10 的 `encDavHandle.js` 因 Destination authority 修复加入差异清单；对上游 `main@3d5f19f` 忽略 CRLF 的当前统计为 **21/29 相同、8 个差异**。历史逐文件表不改写，本轮复审的新增结论见下文 §11。
+
 > 审查对象：`alist-encrypt-txiki` 适配版（worktree `openwrt/alist-encrypt`，分支 `openwrt-tjs`）
 > 上游基线：`upstream/alist-encrypt`，`main@3d5f19fc5a001dfcac110d4c7d3d12d12ab4e617`
 > 审查结论、已实施修复与剩余项均以本文件为准；测试输出记录在 [`tests/run-2026-09-13.md`](../tests/run-2026-09-13.md) 的 R-34 段。
@@ -30,6 +32,8 @@
 **总体判定：符合移植标准，但存在 3 类偏离，已修复；另 2 项需登记/决策。**
 
 - **S-1 达标**：`node-proxy/src/` **22 / 29 个源文件与上游逐字节相同**（修复前为 20/29）。`app.js` 与上游完全一致（CLI 分支只在打包期由 esbuild 改写，源文件不动）。
+  > **口径说明（2026-09-14 复核）**：本节比对按 §1 的判定标准**忽略行尾**。上游仓库自身混用 LF 与 CRLF，本项目在编辑过程中把部分文件统一成 LF，因此严格 `diff -r` 会多报一个文件：`dao/fileDao.js` 与上游**只差行尾**（上游 33 个 CR、本项目 0 个），忽略行尾后内容完全一致，故计入「相同」而未被列为差异文件；内容确有差异的是 `config.js`、`router.js`、`encNameRouter.js`、`utils/{convertFile,httpClient,levelDB,PRGAThread}.js` 共 **7** 个。
+  > 复核命令须带 `--strip-trailing-cr`：`diff -rq --strip-trailing-cr upstream/alist-encrypt/node-proxy/src openwrt/alist-encrypt/node-proxy/src`
 - **S-2 达标**：剩余 7 个差异文件**全部**是运行时边界替换（fs 异步、crypto、stream、http→fetch、worker_threads、DAODB、配置目录），加 1 处已登记的部署事实修复（`normalizeRawUrl`）与 1 处已登记的业务级分叉（U-01）。
 - **S-3 / S-4 基本达标**：平台适配层以 Node 同名 API 承接，文件短小；上游文件改动面收敛到 7 个。唯一扣分项是 `fixed-length-fetch.js` 自建了第二套 HTTP/1.1 栈——已登记为 C-24 并标注为上游同步时的重点回归对象（不再计为「未编号」）。
 - **修复前存在 3 类不应有的偏离**：① 「备份」提交引入的 118 行 AList API 兜底业务逻辑；② 业务无关的缓存查找语义改动；③ 多处删除上游日志调用点，与已登记的 C-10 契约直接冲突。
@@ -40,7 +44,7 @@
 |---|---|---|---|
 | `app.js` | 一致 | 一致 | — |
 | `encDavHandle.js` | +156 / −38 | **一致** | 修复前含 118 行越界兜底逻辑（F-01） |
-| `dao/fileDao.js` | +12 / −6 | **一致** | 修复前含缓存查找语义改动（F-02） |
+| `dao/fileDao.js` | +12 / −6 | **一致**（仅行尾差异，见 §3 口径说明） | 修复前含缓存查找语义改动（F-02） |
 | `config.js` | 差异 | 差异 | `fs` 异步、配置目录扁平化、U-01 归一化 |
 | `router.js` | 差异 | 差异 | `fs` 异步、U-01 边界调用 |
 | `encNameRouter.js` | 差异 | 差异 | `normalizeRawUrl()`（已登记部署事实） |
@@ -48,7 +52,9 @@
 | `utils/httpClient.js` | 差异 | 差异 | Node `http/https` + Agent + pipe → Fetch/Web Streams |
 | `utils/levelDB.js` | 差异 | 差异 | `nedb-promises` → `tjs:sqlite` |
 | `utils/PRGAThread.js` | 差异 | 差异 | `worker_threads` → txiki Worker |
-| 其余 20 个源文件 | 一致 | 一致 | — |
+| 其余 19 个源文件 | 一致 | 一致 | — |
+
+> 合计核对：本表列出 10 个文件（3 个一致 + 7 个差异），加其余 19 个一致 = 29 个；一致文件共 **22** 个，与 §3 的 22/29 相符。
 
 `build.mjs` 的 alias 表把 `koa / koa-router / koa-bodyparser / koa-static / http / https / crypto / stream / fs / path / log4js / dotenv / console` 在**构建期**映射到 `openwrt-tjs/src/platform/*`，使上游文件无需改写导入语句即可打包——这是「能一样就一样」得以实现的关键机制，予以肯定。
 
@@ -171,3 +177,24 @@
 2. ~~F-07（`origin` 头）在取得真实 CDN 侧证据后决定是否恢复转发~~ → **已结案（R-36）**：运行时侧与 CDN 侧两路取证均显示无行为差异，登记为 C-25，无需改码、不升包。
 3. ~~r9 包尚未在 OpenWrt guest 内复跑 38 项套件~~ → **已完成（R-35，2026-09-13 晚）**：guest 内 `/usr/bin/tjs` 实测 `total=38 pass=30 fail=8`，8 项失败与 r8/r7 基线逐项同因同编号（B11-13 直链 `sign`、C04/C06 CDN 不可达、C07-09 AList COPY 级联），**无新增回归**；载荷时效绑定通过（guest 内 `server.mjs` md5 `78beaa11…` = dist）。原始日志 `openwrt-tjs/tests/suite-r9-guest-20260913.log`，记录见 `tests/run-2026-09-13.md` 第 6 节。
 4. 每次改动 `node-proxy/src/` 后，按既定流程重跑 `build.mjs` 并升 `PKG_RELEASE`，同时更新本报告的表 4 与第 7 节。
+
+## 11. r10 之后的增量复审（2026-09-25；源码候选，未发布）
+
+**说明**：§10.4 所述“重编并升包”适用于实际交付；本轮仅是源码候选，临时 staging 编译不意味着重打 r10 包。
+
+**对象与边界**：独立上游 `main@3d5f19fc5a001dfcac110d4c7d3d12d12ab4e617`（未改动）；适配版起点 `openwrt-tjs@e3f4d97`。逐个规范 CRLF 后当前 `node-proxy/src/` 的 **29 个 `.js`：21 同、8 异**，列表可由 `npm run audit:upstream` 复核。§1–10 的 22/29、7 差异和 r9 测试结果仍是**当时**的原始证据，不回写成 r10。
+
+| 差异文件 | 相对原版的实际变动与结论 | 边界 / 本轮验证 |
+|---|---|---|
+| `config.js` | `cwd/conf` → OpenWrt 持久目录根；同步 `fs` → txiki 异步接口、启动前 `await init()`；读入时规范 U-01 的连续斜杠。必要运行时/部署替换 + 已登记业务例外。 | 旧 `flowPassword` 转换后未再次规范化（仅老格式边界，尚无复现实测）。|
+| `encDavHandle.js` | r10 为普通 txiki Fetch 的 Host（缺端口）调整 COPY/MOVE Destination，消除 AList authority 不等造成的 502；保留原作者原有目录/密文名处理。 | R-42 的 COPY/MOVE 已在 r10 guest 验证；**带实体且有定长头**会走 raw socket，原 r10 的 Host/Destination 再次不一致，本轮在平台定长发送处补齐；R-44 阶段尚未 guest 复验，后续 guest 真云完整套件通过也不能证明「带实体且定长」分支已单独命中。 |
+| `encNameRouter.js` | 仅当 `raw_url` 与 AList 配置同主机且缺端口时补回配置端口；作用于缓存的真实下载地址，不修改远端 CDN URL。 | 定向部署修复，不应扩展为任意 URL 重写；历史对照记录保留。 |
+| `router.js` | 配置保存与文件存在/遍历切换到异步 `fs`，保存前按 U-01 规范规则；API 路径与响应基本沿用原版。 | 并行配置提交可能因 `await fs.writeFile()` 与内存 `_snapshot` 赋值顺序产生竞态；**静态审查风险，尚未并发复现**。`/encryptFile` 异步任务不 await 是原版也有的行为。 |
+| `utils/PRGAThread.js` | `worker_threads` 改为 txiki Worker；计时超时回退主线程，保留相同 PRGA 内核。 | 已修 Worker `error` 后继续复用坏线程、`postMessage` 抛错留下 30 秒定时器，以及 Windows URL 路径空格解码；Node mock 回归通过，真机未复跑。整文件重写仍是上游同步高风险点。 |
+| `utils/convertFile.js` | 同步遍历/建目录/流改异步 tjs `fs` 与 Web Streams `pipeTo()`，完整写入后再 `rename()`；加密算法调用顺序沿用原版。 | 转换错误缺 `finally` 清理定时器、API 不 await 后台任务等属原版既有设计；不可冒充本轮已作端到端复测。 |
+| `utils/httpClient.js` | Node `http/https` 与 Agent 改 Fetch/Web Streams；独立 `fixed-length-fetch.js` 处理流式定长请求，过滤 hop-by-hop、Host、Origin。 | r10 已验普通 HTTP 链路；本轮平台层修无实体状态和 raw COPY/MOVE authority，Node 隔离测试通过。自签名 TLS、自动解压头和中途断流仍待目标运行时对照，不猜结论。 |
+| `utils/levelDB.js` | NeDB → `tjs:sqlite`，保持 `setValue`/TTL/未命中接口形状，并显式兼容非标量 key 返回空。 | 旧版 DAO 重启/TTL 测试有记录；旧 NeDB 文件**不会自动迁移**到 SQLite，旧 Node 安装升级须单独策划数据迁移。 |
+
+**风格结论**：新增业务文件代码保留两空格、单引号、无分号与原有职责，没有批量格式化未改的 21 个文件；平台实现隔离在 `openwrt-tjs/src/platform/`。`PRGAThread.js` 因运行时线程 API 不同必须大改；`encDavHandle.js` 多一处运行时别名导入，属 r10 为了处理真实 Host 而增加的必要边界差异，不应随意复制成通用业务逻辑。已确认的源代码问题按最小范围改平台与 Worker，未改加密、命名或授权规则。不能把 `userDao.updateUserInfo()` 未 await 等两侧同源的设计问题判作适配回归；新增上游问题仍须满足 [上游问题登记标准](upstream-issues.md)。
+
+**本轮可复现证据**：新增 `openwrt-tjs/tests/adapter-regression.mjs`，修前 4 类断言失败（Koa 204；定长栈 204；定长 COPY/MOVE 的 Host/Destination；坏 Worker 再用）；修后 `npm run test:adapter` **5/5 PASS**（另覆盖 `postMessage` 异常）；`npm run test:syntax` 与两侧 `git diff --check` 通过；临时 staging bundle 成功（`server.mjs` MD5 `064149ad…`，随后清理），r10 正式 dist 哈希不变。Makefile `PKG_LICENSE` 从误填 MIT 对齐仓库 ISC，NOTICE 的上游 SHA 与当前差异数字也已更正。**R-44 隔离阶段未改正式 dist/APK、未重跑 ARM64 guest、未更新公开 Release**；r10 的历史 45/0/3 不能覆盖本轮新补丁。随后**独立候选与正式 r10** 各自在 ARM64 guest + 真实网盘跑完 52 项（各 50/0/2），候选向量、DAO 与本地 HTTP 亦通过；这些结果不代表已发布载荷含新补丁，也不覆盖特殊故障注入和生产路由器现场，见 [后续真云记录](../openwrt-tjs/tests/run-2026-09-25-live-cloud.md)。升级闸门见 [维护流程](adapter-maintenance.md)，隔离阶段命令/输出/清理结果见 [R-44](../tests/run-2026-09-25.md)。

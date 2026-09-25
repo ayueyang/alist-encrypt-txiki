@@ -12,7 +12,8 @@
 //      并按它拼 Destination，于是经 txiki 转发时两者必然不一致 → COPY/MOVE 恒 502。
 //      上游 Node 版不会遇到：undici 的 Host 头取自 URL authority，本身含端口。
 //
-// 因此按「运行时实际会发出的 Host」来构造 Destination authority：txiki 下去掉端口，
+// 普通 txiki Fetch 按其实际 Host 构造 Destination：txiki 下去掉端口；
+// 流式定长请求使用 raw socket（Host 带端口）时，fixed-length-fetch.js 在发送前补回端口。
 // 其余运行时（含 Node 对照基线，本模块只被 txiki 构建引用）保持原样。
 export function destinationAuthority(hostWithPort) {
   if (typeof hostWithPort !== 'string' || hostWithPort === '') {

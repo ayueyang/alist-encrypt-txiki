@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "test:syntax": "node --check build.mjs"
+    "test:syntax": "node --check build.mjs",
+    "test:adapter": "node --test tests/adapter-regression.mjs",
+    "audit:upstream": "node scripts/compare-upstream.mjs"
   },
   "dependencies": {
     "@noble/ciphers": "2.1.1",

@@ -68,8 +68,8 @@ const platformPlugin = {
 
 // Node 对照基线（node-vectors.cjs）取「未经运行时适配」的原版源码。
 // 开发布局下原版在仓库外的 upstream/alist-encrypt/node-proxy；
-// 开源发布仓库没有该外部目录，此时本仓库自带的 node-proxy 就是原版 Node 版本，
-// 故回退到本地 proxyDir，保证独立检出即可构建。
+// 独立检出没有外部上游目录时回退到本仓库的适配源码以保证可构建；
+// 此时仅能做加密向量自检，不能把结果称为「与独立上游源码对照」。
 const externalUpstreamDir = path.resolve(projectDir, '..', '..', 'upstream', 'alist-encrypt', 'node-proxy')
 const upstreamDir = existsSync(externalUpstreamDir) ? externalUpstreamDir : proxyDir
 const nodeBaselinePlugin = {

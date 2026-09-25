@@ -167,7 +167,8 @@ function responseBody(ctx) {
     headers.set('content-type', 'application/json; charset=utf-8')
     headers.delete('content-length')
   }
-  if (ctx.method === 'HEAD') {
+  // Fetch Response rejects even an empty body for these status codes.
+  if (ctx.method === 'HEAD' || ctx.res.statusCode === 204 || ctx.res.statusCode === 205 || ctx.res.statusCode === 304) {
     body = null
   }
   return body

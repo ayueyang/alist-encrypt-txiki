@@ -3,7 +3,7 @@
 本文件说明如何在**不依赖浏览器**的前提下，用纯 HTTP API 反复验证 alist-encrypt 的服务端行为。
 适用范围：OpenWrt txiki.js 适配版（`openwrt-tjs`）与上游 Node 原版，二者共用同一份用例。
 
-> 本文件是**使用说明**。单次执行的真实输出记录在 `tests/run-<date>.md`，两者不要混写。
+> 本文件是**使用说明**。单次执行的真实输出记录在 `tests/run-<date>.md`，两者不要混写；2026-09-25 各层实测及审查见 `tests/run-2026-09-25-live-cloud.md`。
 
 ## 1. 组成
 
@@ -21,21 +21,21 @@
    - guest：`/etc/init.d/alist-encrypt start`（procd 托管，监听 `port`，默认 5344）。
    - Node 对照台：由 `work/api-harness/run-api.mjs` 拉起。
 2. AList 服务可达，且测试账号具备 `/会员` 下建目录、上传、下载、删除的权限。
-3. 凭据只经**进程环境变量**传入，不得写入脚本、配置文件、日志或 shell history。
-4. 用例只操作 `<rootPath>/_api_e2e_<时间戳>`（默认 `/会员/_api_e2e_*`）与 `<rootPath>/_api_plain_<时间戳>`，
-   结束时会删除这两个目录并恢复被改动的应用配置。**不要把它指向业务目录。**
+3. 凭据只经**进程环境变量或不回显的标准输入**传入，不得写入脚本、配置文件、日志或 shell history。
+4. 用例只操作 `<rootPath>/_api_e2e_<时间戳>_<随机后缀>`（默认 `/会员/_api_e2e_*`）与 `<rootPath>/_api_plain_<时间戳>_<随机后缀>`，
+   先检查两者均不存在，再创建；结束时删除并**回读确认**两个目录和临时 WebDAV 配置条目消失、代理配置与原快照一致（Z01–Z04）。**不要把它指向业务目录。**
 
 ## 3. 环境变量
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `ALIST_PASSWORD` | 无（必填） | AList 账号密码。缺失时入口直接以退出码 2 终止。 |
+| `ALIST_PASSWORD` | 无（必填） | AList 账号密码。guest 可由 `secure-e2e-runner.mjs` 从不回显的标准输入接收后仅暂存于进程环境；缺失时入口退出码 2。 |
 | `ALIST_USERNAME` | `admin` | AList 账号名。 |
-| `ALIST_ORIGIN` | `http://10.0.2.100` | AList 起点（guest 内可用 QEMU 网关地址；对照台用模拟 AList 地址）。 |
+| `ALIST_ORIGIN` | `http://10.0.2.2:5244` | 执行入口实际默认值：guest DHCP/slirp 网关到 AList；历史 `10.0.2.100` guestfwd 在长时间运行后曾失效（R-28）。对照台应传模拟 AList 地址。 |
 | `PROXY_ORIGIN` | `http://127.0.0.1:5344` | 被验证代理的起点。 |
 | `APP_PASSWORD` | `123456` | 代理自身 `/enc-api/login` 的密码（初始化默认值）。 |
 | `API_E2E_ROOT` | `/会员` | 隔离目录的父目录。 |
-| `API_SKIP_WEBDAV=1` | 未设置 | 跳过 C 组全部 9 项（记 SKIP）。**运行时 LWS 无 WebDAV 方法补丁时必须设置**（官方 Windows/macOS tjs 二进制下 C01 的 fetch PROPFIND 会永久挂死整个套件），见 `docs/desktop-txiki-runbook.md` §4。 |
+| `API_SKIP_WEBDAV=1` | 未设置 | 跳过 C 组 9 项及依赖 WebDAV 的 D 组 9 项（D05 纯 API 目录操作仍运行），合计 18 项 SKIP。**运行时 LWS 无 WebDAV 方法补丁时必须设置**（官方 Windows/macOS tjs 二进制下 C01 的 fetch PROPFIND 会永久挂死整个套件），见 `docs/desktop-txiki-runbook.md` §4。 |
 
 ## 4. 运行方式
 
@@ -47,10 +47,9 @@ guest 测试目录的挂载点随环境代数不同（详见根目录 `docs/open
 - 第一代（2026-08-30/31）：`/mnt/host/openwrt/alist-encrypt/openwrt-tjs/`（整个工作区根共享）。
 
 ```sh
-ALIST_PASSWORD='<secret>' \
-ALIST_ORIGIN=http://10.0.2.100 \
-PROXY_ORIGIN=http://127.0.0.1:5344 \
-  /usr/bin/tjs run /mnt/host/tests/api-suite-run.mjs
+# 凭据不在命令行/历史中出现：等 E2E_CREDENTIAL_READY 再经无回显输入提供
+E2E_TARGET=api-suite ALIST_ORIGIN=http://10.0.2.2:5244 PROXY_ORIGIN=http://127.0.0.1:5344 \
+  /usr/bin/tjs run /mnt/host/tests/secure-e2e-runner.mjs
 ```
 
 只有 guest 内 `/usr/bin/tjs` 的输出才算 OpenWrt 证据。
@@ -79,9 +78,9 @@ node work/api-harness/run-upstream.mjs   # 拉起模拟 AList + 未修改的上�
 # 免凭据自检：只验证「代理 ↔ 真实 AList」链路
 PROBE_ONLY=1 node work/api-harness/run-real.mjs
 
-# 真实上传与校验（需要 AList 凭据）
-ALIST_PASSWORD='<secret>' node work/api-harness/run-real.mjs
-PROXY_KIND=upstream ALIST_PASSWORD='<secret>' node work/api-harness/run-real.mjs
+# 真实上传与校验：在安全执行环境中预先注入 ALIST_PASSWORD，勿写进命令行/历史
+node work/api-harness/run-real.mjs
+PROXY_KIND=upstream node work/api-harness/run-real.mjs
 ```
 
 要点：
@@ -93,7 +92,7 @@ PROXY_KIND=upstream ALIST_PASSWORD='<secret>' node work/api-harness/run-real.mjs
   不要在有生产流量的实例上运行。
 - `PROXY_KIND=adapted`（默认）验证适配版，`upstream` 用未经修改的上游 Node 原版做参照。
 
-## 5. 用例清单（48 项）
+## 5. 用例清单（A–D 48 项 + 清理 Z 4 项 = 共 52 项）
 
 ### A 组：应用自身 API（9 项）
 
@@ -159,6 +158,17 @@ PROXY_KIND=upstream ALIST_PASSWORD='<secret>' node work/api-harness/run-real.mjs
 | D07 | 受限形态登记：同目录换名 COPY 在 AList 侧 500（直连 AList 同样 500）→ SKIP |
 | D08 | 受限形态归因：跨目录 MOVE 撞名。AList 的 `BaiduNetdisk` 驱动 Move 为 `newname=源文件名 + ondup=fail`，目标目录已有同名（密文同名）时百度返回 `errno 12` → 500；本用例同时验证「经代理」与「直连 AList」均 500，并在移除目标同名文件后确认同一 MOVE 恢复 2xx |
 
+### Z 组：清理与回读（4 项）
+
+| 编号 | 覆盖点 |
+| --- | --- |
+| Z01 | 动态 `_api_e2e_*` 云端目录删除后直连 AList 回读确认为不存在 |
+| Z02 | 动态 `_api_plain_*` 云端目录删除后直连 AList 回读确认为不存在 |
+| Z03 | 临时 WebDAV 配置条目删除后回读确认为不存在 |
+| Z04 | 代理配置与测试前快照逐字段一致 |
+
+`finally` 即使用例失败也执行清理；若清理失败，先处理残留，不能以 `summary.fail === 0` 结案。
+
 ## 6. 判读方式
 
 输出三类行：
@@ -166,17 +176,18 @@ PROXY_KIND=upstream ALIST_PASSWORD='<secret>' node work/api-harness/run-real.mjs
 ```
 API_RULES {"serverHost":"...","serverPort":5344,"rules":[{"enable":true,"encType":"aesctr","encName":true,"encFolder":true,"encPath":["..."]}]}
 API_CASE PASS B05 加密上传 /api/fs/put :: HTTP 200
-API_SUMMARY {"runtime":"openwrt tjs","total":37,"pass":37,"fail":0,"skip":0}
+API_SUMMARY {"runtime":"node v24.16.0","total":52,"pass":51,"fail":0,"skip":1}
 ```
 
 - `API_RULES` 是**生效规则回显**（`password` 一律脱敏）。排查"加密不生效"时先看这一行：
   `encName`/`encFolder` 是否为 `true`、`encPath` 是否与请求路径形状匹配。
-- 退出码：`0` 全部通过；`1` 有用例失败；`2` 前置失败（登录失败、缺凭据等）。
+- 退出码：`0` 表示 `summary.fail === 0`（可以含已归因 SKIP，仍须单独阅读摘要）；`1` 有用例失败；`2` 前置失败（登录失败、缺凭据等）。
 - 断言一律通过 `assert()` 抛出。用例失败时 `detail` 直接给出实际值，不用"把失败描述当字符串返回"的写法。
-- **`SKIP` 的两种来源**：① `API_SKIP_WEBDAV=1`（运行时无 WebDAV 方法时跳过 C 组）；
-  ② 断言抛出的错误消息以 `SKIP::` 开头——表示"已归因的受限形态，非本适配层缺陷"，例如
-  C-26（txiki fetch 等待响应头 15s 上限，后端慢时并发请求排队超限）、D07（AList 侧同目录 COPY 限制）。
-  SKIP 只对**已归因的形态**生效：一旦状态码/内容变了（例如 500 变成 502 或内容不一致），仍会落到 `FAIL`。
+- **`SKIP` 的两种实现来源**：① `API_SKIP_WEBDAV=1`（运行时无 WebDAV 方法时跳过 C 组和 D 组的 WebDAV 用例，D05 保留）；
+  ② 断言抛出的错误消息以 `SKIP::` 开头——表示"已归因的受限形态"或"样本不足，无法作出结论"，**绝不是通过**。
+  例如 C-26（txiki fetch 等待响应头 15s 上限）、D07（AList 侧同目录 COPY 限制）、
+  B19（上传已落盘但 <5 个 `/ping` 样本且上传 <4s，仅验证落盘，无法验证 R-25 并发属性）。
+  只有已归因形态或明确说明了未测量的样本不足才记 SKIP；意外状态码/内容不一致、未知网络错误、慢上传采样不足仍须 `FAIL`。
 
 ### WebDAV 的判读注意
 
@@ -184,6 +195,8 @@ WebDAV 的 `href` 是 URI，必须是百分号编码形式。断言前要解码�
 例如 `dav%20%E6%A0%B7%E4%BE%8B.txt` 解码后才是明文 `dav 样例.txt`。
 
 ### Guest（txiki）环境的注意
+
+- **不要混淆两个环境变量**：原版 `config.js` 仅在首次建配置时按 `host:port` 解析 `ALIST_HOST`（判断 `indexOf(':') > 6`），所以初始化独立 HOME 用 `ALIST_HOST=10.0.2.2:5244`（不带 `http://`）；套件客户端的 `ALIST_ORIGIN` 则是完整 URL `http://10.0.2.2:5244`。已持久化的配置仍须走应用配置 API。本限制属原版行为，不在适配层改业务逻辑。
 
 - **URL 必须显式百分号编码**：txiki 的 `fetch` 不会像 Node 一样对 URL 中的空格与非 ASCII 自动编码，
   裸空格会让请求行在服务端按空格截断（文件名丢后缀、PROPFIND href 截断）。套件统一用
@@ -221,15 +234,16 @@ await step(
 
 ## 8. 规则形状矩阵（rule-matrix）
 
-当要回答「上传为什么是明文」时，用这个矩阵而不是 37 项用例集：它专门逐个测试 `encPath` 的写法。
+当要回答「上传为什么是明文」时，用这个矩阵而不是当前 52 项通用套件：它专门逐个测试 `encPath` 的写法。
 
 - 脚本：`work/api-harness/rule-matrix.mjs`（不在 git 仓库内，属对照台工具）。
 - 运行方式：借 `run-real.mjs` 的 `ENTRY_SCRIPT` 挂载，代理指向真实 AList。
 
 ```bash
 cd work/api-harness
-ENTRY_SCRIPT=$(pwd)/rule-matrix.mjs PROXY_KIND=adapted ALIST_PASSWORD='<secret>' node run-real.mjs > rule-matrix-adapted.log 2>&1
-ENTRY_SCRIPT=$(pwd)/rule-matrix.mjs PROXY_KIND=upstream ALIST_PASSWORD='<secret>' node run-real.mjs > rule-matrix-upstream.log 2>&1
+# 先在安全执行环境注入 ALIST_PASSWORD，不能在命令行或日志写口令
+ENTRY_SCRIPT=$(pwd)/rule-matrix.mjs PROXY_KIND=adapted node run-real.mjs > rule-matrix-adapted.log 2>&1
+ENTRY_SCRIPT=$(pwd)/rule-matrix.mjs PROXY_KIND=upstream node run-real.mjs > rule-matrix-upstream.log 2>&1
 grep -E '^RULE_CASE|^RULE_MATRIX_SUMMARY' rule-matrix-*.log
 ```
 
@@ -245,12 +259,12 @@ grep -E '^RULE_CASE|^RULE_MATRIX_SUMMARY' rule-matrix-*.log
 ## 9. 限制
 
 - 本用例集走 HTTP/WebDAV 协议面，不覆盖浏览器渲染。前端页面验收在
-  `openwrt-tjs/tests/browser-acceptance.py`。
+  `openwrt-tjs/tests/browser-acceptance.py`；可用 `BROWSER_OUTPUT_DIR` 指向独立目录，避免覆盖旧截图。浏览器截图可能含真实网盘文件名，不能公开归档。
 - 本地 Node 与 Windows 侧的结果只能作为对照，不能写成 OpenWrt 结论。
 - 跨 WSL / guest 的命令一律用字面路径：宿主命令行的 `$VAR`/`$?`/`$( )` 会在到达 guest 前被外层展开。
   一键部署脚本 `openwrt-tjs/tests/guest-deploy.sh` 把挂载、装包、修 slirp、起服务与 md5 回显固化在 guest 内执行。
   环境拓扑、重建步骤与故障速查见工作区根的 `docs/openwrt-guest-runbook.md`。
 - 用 `curl` 探测本地端口时必须加 `--noproxy '*'`：本机 `http_proxy` 指向 `127.0.0.1:9851`，
   不加会得到误导性的 `502 upstream connect failed` 而不是「连接被拒」。
-- 真实 AList 若为网盘类挂载，`/d`、`/p` 直链要求 `sign` 参数、WebDAV `COPY` 由 AList 返回 500，
+- 真实 AList 若为网盘类挂载，`/d`、`/p` 直链要求 `sign` 参数；**同目录换名 COPY**（D07）可由 AList 返回 500，但跨目录 COPY（C07）应独立验证，
   相关用例会稳定失败；这属被测环境行为，判读时须与上游原版对照后再下结论。

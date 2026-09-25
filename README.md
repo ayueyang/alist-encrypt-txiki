@@ -11,6 +11,8 @@ An adaptation of [alist-encrypt](https://github.com/traceless/alist-encrypt) tha
 [txiki.js](https://github.com/saghul/txiki.js) runtime instead of Node.js — same application code,
 same business logic, now deployable on OpenWrt routers and on desktop Linux / Windows.
 
+> **源码与 Release 的边界（2026-09-25）**：公开交付仍为 r10（R-42/R-43）。无实体 HTTP 响应、定长 COPY/MOVE 与 Worker 失败回退是**尚未打入 r10 的源码候选**；Node 隔离测试 5/5，后续正式 r10 与候选分别在 ARM64 guest + 真实网盘完成 52 项（各 **50 PASS / 0 FAIL / 2 SKIP**），候选另通过固定向量、DAO 与本地 HTTP。详见 [分层真云运行记录](openwrt-tjs/tests/run-2026-09-25-live-cloud.md)。正式 `dist`/APK/Release 未改；QEMU guest 不等于用户路由器现场验收，亦非新版桌面包验收。复审见 [增量报告 §11](docs/porting-code-review.md)，后续步骤见 [维护清单](docs/adapter-maintenance.md)。
+
 ---
 
 **目录**　[为什么有这个项目](#为什么有这个项目) · [特性](#特性) · [支持平台](#支持平台) ·
@@ -184,7 +186,7 @@ alist-encrypt-convert <参数>
 
 | 目录 | 内容 | 与上游的关系 |
 |---|---|---|
-| `node-proxy/` | 后端（29 个业务源文件） | **22 个与上游逐字节相同**（忽略行尾，见下），其余 7 个的差异全部在运行时边界 |
+| `node-proxy/` | 后端（29 个业务源文件） | **21 个与上游内容相同**（忽略行尾，见下），其余 8 个含已登记的运行时边界变更、部署事实修复与 U-01 配置边界例外 |
 | `enc-webui/` | 前端源码（300 文件） | 全部与上游逐字节相同 |
 | `openwrt-tjs/` | **本项目新增**：平台垫片、构建脚本、OpenWrt 打包、测试 | 上游没有 |
 | `dockerfile` | 上游 Node 版本的容器构建，未修改 | 不适用于 txiki 适配版，本项目不提供镜像 |
@@ -194,13 +196,14 @@ alist-encrypt-convert <参数>
 ```sh
 git clone https://github.com/traceless/alist-encrypt /tmp/upstream
 
-diff -rq --strip-trailing-cr /tmp/upstream/node-proxy/src node-proxy/src   # 应只列出 7 个文件
+diff -rq --strip-trailing-cr /tmp/upstream/node-proxy/src node-proxy/src   # r10 应列出 8 个文件
 diff -rq /tmp/upstream/enc-webui enc-webui                                # 应无输出
 ```
 
 > **为什么加 `--strip-trailing-cr`**：上游仓库自身混用 LF 与 CRLF，本项目在编辑过程中把部分文件
 > 统一成了 LF。严格 `diff -r` 会因此多报 `node-proxy/src/dao/fileDao.js`——该文件与上游**只差行尾**。
 > 换行差异容易掩盖真实差异，也容易把行尾差异误当代码差异，所以这里只比内容。
+> **版本口径**：R-34/r9 的审查为 22/29、7 个差异；r10 为修正 WebDAV Destination 的 Host authority，在 `encDavHandle.js` 多了一处运行时边界差异。2026-09-25 对固定上游 `main@3d5f19f` 再次忽略 CRLF 比对得到 **21/29、8 个差异**；旧审查原始结论保留其日期，详见 `docs/porting-code-review.md`。
 
 改动清单与逐项理由见 [docs/porting-code-review.md](docs/porting-code-review.md)；
 上游自身的业务逻辑问题只登记不修改，记录在 [docs/upstream-issues.md](docs/upstream-issues.md)。
@@ -229,7 +232,8 @@ diff -rq /tmp/upstream/enc-webui enc-webui                                # 应�
 | [docs/background.md](docs/background.md) | 项目背景、加密算法选择与性能数据 |
 | [docs/openwrt-tjs-compatibility.md](docs/openwrt-tjs-compatibility.md) | 兼容性总表：Node API 对照与替换关系 |
 | [docs/openwrt-tjs-unsupported-and-replacements.md](docs/openwrt-tjs-unsupported-and-replacements.md) | 不支持的能力与替代方案 |
-| [docs/porting-code-review.md](docs/porting-code-review.md) | 代码审查报告：逐文件差异与判定 |
+| [docs/porting-code-review.md](docs/porting-code-review.md) | 代码审查报告：R-34 历史与 2026-09-25 八处差异增量复审 |
+| [docs/adapter-maintenance.md](docs/adapter-maintenance.md) | 上游复审、隔离测试与新版本验收的长期维护清单 |
 | [docs/upstream-issues.md](docs/upstream-issues.md) | 上游业务逻辑问题登记（未修改） |
 | [docs/api-test-guide.md](docs/api-test-guide.md) | 测试方法说明 |
 
@@ -240,6 +244,8 @@ cd openwrt-tjs
 npm ci
 node build.mjs          # 产出 dist/server.mjs
 ```
+
+**注意**：`build.mjs` 会清空并重建本地 `dist/`。当前源码含尚未完成 ARM64 验收的候选补丁；只有在准备新版本或隔离副本时才构建，不能将新 dist 冒充已发布 r10。日常只读比对可运行 `npm run audit:upstream`（需独立原版 checkout），隔离回归运行 `npm run test:adapter`。
 
 测试代码在 `openwrt-tjs/tests/`，运行记录在 [`tests/`](tests/)（按日期归档）。
 
@@ -254,7 +260,7 @@ node build.mjs          # 产出 dist/server.mjs
 1. **不要在适配层重写上游业务语义**——如需改动上游行为，请先在上游仓库讨论。
 2. 新增平台适配请集中在 `openwrt-tjs/src/platform/`，不要散落到业务文件里。
 3. 提交前跑一遍 `node build.mjs` 并确认无解析错误。
-4. 凭据、内网地址、个人路径不要写进仓库。
+4. 真实凭据、生产实例地址、个人路径不要写进仓库；测试示例的 QEMU/slirp 内网地址须标明用途，凭据经环境变量传入。
 
 ## 许可与致谢
 

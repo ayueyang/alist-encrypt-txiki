@@ -2,7 +2,7 @@
 // 也可在 Node 对照台运行。用例主体在 api-suite.mjs，本文件只负责读环境变量、回显生效规则、汇报结果。
 //
 // 用法（guest）：
-//   ALIST_PASSWORD='<secret>' ALIST_ORIGIN=http://10.0.2.100 PROXY_ORIGIN=http://127.0.0.1:5344 \
+//   ALIST_PASSWORD='<secret>' ALIST_ORIGIN=http://10.0.2.2:5244 PROXY_ORIGIN=http://127.0.0.1:5344 \
 //     /usr/bin/tjs run <tests>/api-suite-run.mjs
 //
 // 用法（Node 对照台，需先有模拟 AList 与代理）：

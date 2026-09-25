@@ -1,5 +1,7 @@
 # OpenWrt txiki.js 不支持项与替换原因
 
+> **2026-09-25 源码增量提示**：下表“已通过”是 r10 等历史交付证据；本轮定长 HTTP 栈又修了 204/205/304 空响应与带实体 COPY/MOVE 的 Destination authority，Worker 失败回退也修复，**仅 Node 隔离测试 5/5 与临时 staging 编译，正式 r10 载荷未改、guest 未复验**。见 [增量审查 §11](porting-code-review.md) 和 [维护清单](adapter-maintenance.md)。
+
 ## 目的
 
 本文单独记录 `alist-encrypt` Node 原版在 OpenWrt txiki.js 中不能直接复用的运行时能力、实际证据、替换原因和保留的上游行为。这里的“替换”只允许发生在平台边界；加密算法、AList 路由、文件名协议和 WebDAV 业务逻辑仍以固定上游基线为准。

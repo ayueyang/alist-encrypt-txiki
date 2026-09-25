@@ -20,13 +20,14 @@ function createWorker() {
   try {
     // URL.pathname 在 Windows 下是 '/C:/...'（URL 规范保留前导斜杠），
     // txiki Worker 需要原生路径：剥掉盘符前的斜杠，POSIX 路径不受影响。
-    const workerPath = new URL('./prga-worker.mjs', import.meta.url).pathname.replace(/^\/(?=[A-Za-z]:\/)/, '')
+    const workerPath = decodeURIComponent(new URL('./prga-worker.mjs', import.meta.url).pathname).replace(/^\/(?=[A-Za-z]:\/)/, '')
     worker = new Worker(workerPath)
   } catch (error) {
     console.log('@@worker_create_error', error)
     return null
   }
   worker.pending = new Map()
+  worker.failed = false
   worker.onmessage = ({ data: { msgId, resData } }) => {
     const pending = worker.pending.get(msgId)
     if (!pending) {
@@ -36,6 +37,7 @@ function createWorker() {
     pending.resolve(resData)
   }
   worker.onerror = (error) => {
+    worker.failed = true
     console.log('@@worker_error', error)
     for (const pending of worker.pending.values()) {
       pending.resolve(PRGAExcute(pending.data))
@@ -52,7 +54,7 @@ for (let i = 0; i < workerNum; i++) {
 export default function PRGAExcuteThread(data) {
   return new Promise((resolve) => {
     const worker = workerList[index++ % workerList.length]
-    if (!worker) {
+    if (!worker || worker.failed) {
       resolve(PRGAExcute(data))
       return
     }
@@ -71,6 +73,14 @@ export default function PRGAExcuteThread(data) {
         resolve(result)
       },
     })
-    worker.postMessage({ msgId, data })
+    try {
+      worker.postMessage({ msgId, data })
+    } catch (error) {
+      worker.failed = true
+      worker.pending.delete(msgId)
+      clearTimeout(timer)
+      console.log('@@worker_post_error', error)
+      resolve(PRGAExcute(data))
+    }
   })
 }

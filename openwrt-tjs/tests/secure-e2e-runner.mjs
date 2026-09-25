@@ -30,8 +30,12 @@ if (!password) {
 tjs.env.ALIST_USERNAME = 'admin'
 tjs.env.ALIST_PASSWORD = password
 try {
-  const target = tjs.env.E2E_TARGET === 'webdav' ? 'proxy-webdav-e2e.mjs' : 'proxy-alist-e2e.mjs'
-  await import(`../dist/${target}`)
+  if (tjs.env.E2E_TARGET === 'api-suite') {
+    await import('./api-suite-run.mjs')
+  } else {
+    const target = tjs.env.E2E_TARGET === 'webdav' ? 'proxy-webdav-e2e.mjs' : 'proxy-alist-e2e.mjs'
+    await import(`../dist/${target}`)
+  }
 } finally {
   delete tjs.env.ALIST_PASSWORD
 }

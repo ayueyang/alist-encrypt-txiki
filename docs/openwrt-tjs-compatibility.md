@@ -254,7 +254,9 @@ PUT/GET/HEAD/DELETE 全部 HTTP/1.1 200 OK，reportedMethod 与发送方法一�
 
 适配过程中发现的**上游业务逻辑问题**（规则匹配、路径转换、`orig_` 回退、重定向解密语义、AList 侧外部行为）统一登记在 [upstream-issues.md](upstream-issues.md)（U-01…U-06），本表不逐条展开。处置原则：**只修运行时边界，上游问题只记录，不改业务逻辑**。
 
-唯一已实施的业务级分叉是 **U-01**：配置保存边界折叠连续斜杠（`normalizeAlistConfig()`，r4 起随产物发布）。理由是该失败模式会让「用户设了规则却静默不加密」，属安全语义问题；分叉范围不再扩大。除此以外，`pathFindPasswd()`、`convertRealPath()`、`convertShowName()`、`encNameRouter`、`encDavHandle` 与四种加密算法均与上游逐字节一致。
+唯一已实施的业务级分叉原为 **U-01**：配置保存边界折叠连续斜杠（`normalizeAlistConfig()`，r4 起随产物发布）。理由是该失败模式会让「用户设了规则却静默不加密」，属安全语义问题。
+
+2026-10-19 追加 **U-07/U-08/U-09** 三项 WebDAV 修复（`fileDao.js` 缓存键归一化、`encDavHandle` 的 href 编码还原与 COPY 后 GET 探测），理由同属「用户能看到文件却打不开」的可用性失败；`pathFindPasswd()`、`convertRealPath()`、`convertShowName()`、`encNameRouter` 与四种加密算法仍与上游逐字节一致。
 
 ## 更新规则
 

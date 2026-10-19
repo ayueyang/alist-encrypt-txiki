@@ -22,6 +22,24 @@ const origPrefix = 'orig_'
 // bodyparser解析body
 const parser = new XMLParser({ removeNSPrefix: true })
 
+// XML 里的 href 是百分号编码的，而 ctx.req.url 是解码后的中文路径；
+// 只替换解码形式匹配不到，父目录就会停留在密文（U-08）。两种形式都试。
+// 注意 to 本身已经是 encodeURI 后的形式，不能再编码一次，否则 % 会被转成 %25。
+function replacePathInBody(respBody, from, to) {
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&gt;')
+  const rawFrom = esc(from)
+  const rawTo = esc(to)
+  const afterRaw = respBody.replace(rawFrom, rawTo)
+  if (afterRaw !== respBody) {
+    return afterRaw
+  }
+  const encFrom = esc(encodeURI(from))
+  if (encFrom === rawFrom) {
+    return afterRaw
+  }
+  return respBody.replace(encFrom, rawTo)
+}
+
 function getFileNameForShow(fileInfo, passwdInfo) {
   let getcontentlength = -1
   const href = fileInfo.href
@@ -167,8 +185,8 @@ const preHandle = async (ctx, next) => {
               const hrefName = fileName.replace(/&/g, '&amp;').replace(/</g, '&gt;')
               logger.debug('@@respBody_list', ctx.req.url, url, fileInfo.href, fileName, hrefName, respBody)
               let endsWith = showName ? '' : '/'
-              // 先把路径替换掉
-              respBody = respBody.replace(ctx.req.url.replace(/&/g, '&amp;').replace(/</g, '&gt;'), url.replace(/&/g, '&amp;').replace(/</g, '&gt;'))
+              // 先把路径替换掉（解码/百分号编码两种形式都试，见 U-08）
+              respBody = replacePathInBody(respBody, ctx.req.url, url)
               if (url === fileInfo.href) {
                 // 不替换跟目录的href连接名字
                 return
@@ -196,7 +214,7 @@ const preHandle = async (ctx, next) => {
           let endsWith = showName ? '' : '/'
           // 这个是查询文件详情，所以可以直接替换
           logger.debug('@@respBody_detail', ctx.req.url, url, fileName, respBody)
-          respBody = respBody.replace(ctx.req.url.replace(/&/g, '&amp;').replace(/</g, '&gt;'), url.replace(/&/g, '&amp;').replace(/</g, '&gt;'))
+          respBody = replacePathInBody(respBody, ctx.req.url, url)
           // 下面这个其实可以不用了，只要修复目录的 & 符号问题，就可以把下面的去掉
           respBody = respBody.replace(`/${hrefName}${endsWith}</D:href>`, `/${encodeURI(showXmlName)}${endsWith}</D:href>`)
           respBody = respBody.replace(`${displayname}</D:displayname>`, `${showXmlName}</D:displayname>`)
@@ -370,10 +388,20 @@ const preHandle = async (ctx, next) => {
     if (fileInfo) {
       request.fileSize = fileInfo.size * 1
     } else if (request.headers.authorization) {
-      // 这里要从就是webdav请求了文件信息
       const authorization = request.headers.authorization
-      const webdavFileInfo = await getWebdavFileInfo(request.urlAddr, authorization)
-      logger.info('@@webdavFileInfo_size:', filePath, request.urlAddr, webdavFileInfo)
+      // 缓存未命中时（典型场景：COPY/MOVE 之后客户端立刻 GET），必须按加密名去探测；
+      // 只探明文路径会 404，因为云上存的是密文名（U-09）。
+      const plainBase = path.basename(decodeURI(request.urlAddr))
+      const realBase = path.basename(filePath)
+      let probeAddr = request.urlAddr
+      if (realBase && plainBase !== realBase) {
+        probeAddr = request.urlAddr.replace(plainBase, encodeURI(realBase))
+      }
+      let webdavFileInfo = await getWebdavFileInfo(probeAddr, authorization)
+      if (!webdavFileInfo && probeAddr !== request.urlAddr) {
+        webdavFileInfo = await getWebdavFileInfo(request.urlAddr, authorization)
+      }
+      logger.info('@@webdavFileInfo_size:', filePath, probeAddr, webdavFileInfo)
       if (webdavFileInfo) {
         webdavFileInfo.path = filePath
         // 某些get请求返回的size=0，不要缓存起来
@@ -381,6 +409,11 @@ const preHandle = async (ctx, next) => {
           cacheFileInfo(webdavFileInfo, true)
         }
         request.fileSize = webdavFileInfo.size * 1
+        // 探测走的是加密路径，后续代理也必须用加密路径取文件
+        if (probeAddr !== request.urlAddr) {
+          request.urlAddr = probeAddr
+          request.url = decodeURI(new URL(probeAddr).pathname)
+        }
       }
     }
     request.passwdInfo = passwdInfo

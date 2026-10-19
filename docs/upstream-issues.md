@@ -6,7 +6,7 @@
 
 - 这些问题在上游 Node 原版下同样复现，不是适配引入的缺陷。判定方式见下。
 - 本项目不因为「顺手」而修改规则匹配、路径转换、命名回退或重定向语义；提出上游修复与否由维护者决定，本文件只提供可复现证据。
-- 唯一已实施的业务级分叉是 U-01，其理由与范围见该条目；**不扩大分叉范围**。
+- 已实施的业务级分叉共两批：**U-01**（配置保存边界折叠连续斜杠）与 **U-07/U-08/U-09**（WebDAV 路径还原与缓存键一致性），理由与范围见各自条目；除此之外**不扩大分叉范围**。
 
 ## 判定口径
 
@@ -73,6 +73,44 @@
 - 网盘挂载（`/会员`）的 WebDAV `GET` 会 302 到外部 CDN，无外网出口的网络环境不可达。
 
 **证据**：`api-suite` 中稳定失败的 6–8 项即来源于此，逐项归因见 `tests/run-2026-09-12.md`（R-19、R-24、R-29）与 `tests/run-2026-09-13.md`（R-33，Windows 需 `API_SKIP_WEBDAV=1`）。
+
+## U-07 MKCOL 不带尾斜杠时目录建好却查不到（PROPFIND 404）
+
+**现象**：`MKCOL /dav/会员/x`（不带尾斜杠）返回 201，随后 `PROPFIND /dav/会员/x/` 一律 404；代理侧 `/api/fs/list` 能看到该目录，说明目录确实建出来了。带尾斜杠的 MKCOL 则正常（207）。
+
+**根因**：`dao/fileDao.js` 的 `cacheFileInfo()` 以 `fileInfoTable_<path>` 为键写入，MKCOL 分支写入的 `path` 不带尾斜杠；`encDavHandle` 的 PROPFIND 分支用 `getFileInfo(decodeURI(realPathUrl) + ends)` 查询，请求带尾斜杠时键多一个 `/`，两边对不上，`isDir` 判为 false，后续按文件处理，最终 404。
+
+**本项目处置（业务级分叉，已实施）**：`fileDao.js` 新增 `normalizePathKey()`，缓存键统一去掉末尾斜杠，读写两侧一致。
+
+**对照证据**：2026-10-19 真机（Nokia XG-040G-MF / PonWrt 25.12.5 / aarch64_cortex-a53）。修复前 MKCOL(无斜杠)=201、PROPFIND=404；修复后 201/207。上游原版（`traceless/alist-encrypt` `3d5f19fc`，ts-node 跑在 15444）表现完全相同（404/207），确认根因在上游。
+
+## U-08 PROPFIND 返回的 href 父目录停留在密文
+
+**现象**：加密目录下列表能出，但子项 href 形如 `/dav/会员/sSZKwaKN8VHHP/f.txt`（父目录是密文），客户端照 href 取文件 404；`displayname` 却是对的。含中文的加密路径必现。
+
+**根因**：`encDavHandle` 用 `respBody.replace(ctx.req.url, url)` 还原路径。`ctx.req.url` 是 `convertRealPath()` 生成的**解码后**中文路径，而 AList 返回的 XML 里中文是百分号编码，字符串匹配不上；随后只替换了 ASCII 文件名（`/${hrefName}</D:href>`），于是 `displayname` 对、`href` 错。
+
+**本项目处置（业务级分叉，已实施）**：新增 `replacePathInBody()`，先按原样、再按 `encodeURI(from)` 两种形式各试一次；目标侧直接使用已有的编码形式，避免二次编码（`%` → `%25`）。
+
+**对照证据**：修复前 href=`/dav/%E4%BC%9A%E5%91%98/sSZKwaKN8VHHP/f.txt`，GET 该 href=404；修复后 href=`/dav/%E4%BC%9A%E5%91%98/_fix_b/f.txt`，GET=200。rclone（`ls`/`copyto`）与 Windows 资源管理器（映射 Z:）读取均恢复正常。上游同版本同样出现密文父目录。
+
+## U-09 COPY/MOVE 之后立刻 GET 目标返回 404
+
+**现象**：COPY 返回 201、数据确实落到云端，但紧接着 GET 目标文件 404；先做一次 PROPFIND 再 GET 才正常。
+
+**根因**：GET 分支依赖 `fileInfoTable_` 缓存把明文名映射到密文名；COPY/MOVE 不写缓存，`getFileInfo` 未命中后只拿**明文** URL 去 `getWebdavFileInfo()` 探测，云端存的是密文名，探测失败 → `fileSize=0` → 按不加密明文透传 → 404。
+
+**本项目处置（业务级分叉，已实施）**：缓存未命中时，按 `convertRealName()` 算出的加密名先探测；命中后把 `request.url` / `request.urlAddr` 一并切到加密路径再代理；探测失败才回退明文（兼容 `orig_` 存量文件）。
+
+**对照证据**：修复前 COPY=201、GET=404；修复后 COPY=201、GET=200 且内容一致（`COPYFIX01`）。上游同版本同样 404。
+
+## U-10 Windows 资源管理器（WebClient）在加密目录内无法写入
+
+**现象**：资源管理器里新建文件夹成功，往里写文件报"权限不足"；该目录随后也列不出来。同一目录用 rclone 上传、用 curl `PUT` 都正常。
+
+**根因（已定位到现象层，未完全归因）**：WebClient 写入前会对目标文件做 PROPFIND 探测（含 `.exe`、`.lnk` 变体），代理对尚不存在的文件返回 404，WebClient 直接判定为无权限。服务端日志显示 `PUT` 实际到达并已转换成密文名（`@@webdav_put_info`），是客户端先放弃了。
+
+**本项目处置**：未修改。上游同版本行为一致，需进一步定位 WebClient 对 404 的判定条件（可能与响应头或 `displayname` 有关），留作后续。
 
 ## 相关文档
 

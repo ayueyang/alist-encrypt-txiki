@@ -186,7 +186,7 @@ alist-encrypt-convert <参数>
 
 | 目录 | 内容 | 与上游的关系 |
 |---|---|---|
-| `node-proxy/` | 后端（29 个业务源文件） | **21 个与上游内容相同**（忽略行尾，见下），其余 8 个含已登记的运行时边界变更、部署事实修复与 U-01 配置边界例外 |
+| `node-proxy/` | 后端（29 个业务源文件） | **20 个与上游内容相同**（忽略行尾，见下），其余 9 个含已登记的运行时边界变更、部署事实修复、U-01 配置边界例外与 U-07/U-08/U-09 WebDAV 路径修复 |
 | `enc-webui/` | 前端源码（300 文件） | 全部与上游逐字节相同 |
 | `openwrt-tjs/` | **本项目新增**：平台垫片、构建脚本、OpenWrt 打包、测试 | 上游没有 |
 | `dockerfile` | 上游 Node 版本的容器构建，未修改 | 不适用于 txiki 适配版，本项目不提供镜像 |
@@ -201,9 +201,9 @@ diff -rq /tmp/upstream/enc-webui enc-webui                                # 应�
 ```
 
 > **为什么加 `--strip-trailing-cr`**：上游仓库自身混用 LF 与 CRLF，本项目在编辑过程中把部分文件
-> 统一成了 LF。严格 `diff -r` 会因此多报 `node-proxy/src/dao/fileDao.js`——该文件与上游**只差行尾**。
+> 统一成了 LF。严格 `diff -r` 会因此多报若干只差行尾的文件。
 > 换行差异容易掩盖真实差异，也容易把行尾差异误当代码差异，所以这里只比内容。
-> **版本口径**：R-34/r9 的审查为 22/29、7 个差异；r10 为修正 WebDAV Destination 的 Host authority，在 `encDavHandle.js` 多了一处运行时边界差异。2026-09-25 对固定上游 `main@3d5f19f` 再次忽略 CRLF 比对得到 **21/29、8 个差异**；旧审查原始结论保留其日期，详见 `docs/porting-code-review.md`。
+> **版本口径**：R-34/r9 的审查为 22/29、7 个差异；r10 为修正 WebDAV Destination 的 Host authority，在 `encDavHandle.js` 多了一处运行时边界差异。2026-09-25 对固定上游 `main@3d5f19f` 再次忽略 CRLF 比对得到 **21/29、8 个差异**；2026-10-19 加入 U-07/U-08/U-09 后为 **20/29、9 个差异**（`dao/fileDao.js` 从"仅行尾不同"变为实质差异）。旧审查原始结论保留其日期，详见 `docs/porting-code-review.md`。
 
 改动清单与逐项理由见 [docs/porting-code-review.md](docs/porting-code-review.md)；
 上游自身的业务逻辑问题只登记不修改，记录在 [docs/upstream-issues.md](docs/upstream-issues.md)。
@@ -221,6 +221,10 @@ diff -rq /tmp/upstream/enc-webui enc-webui                                # 应�
 - **跨目录「移动」到已有同名文件的目录会失败**：AList 的百度网盘驱动在移动时使用**源文件名**且重名策略为
   失败（`ondup=fail`），加密规则下同名即密文同名，因此目标目录已有同名文件时移动会返回 500。
   先删掉目标目录里的同名文件即可正常移动。该行为在直连 AList（绕开本代理）时同样出现，属 AList 侧限制。
+- **Windows 资源管理器（WebClient）在加密目录内无法写入**：新建文件夹成功，写入文件报"权限不足"，
+  该目录随后也列不出来；同一目录用 rclone 或 curl 正常。WebClient 写入前会对目标文件做 PROPFIND
+  探测（含 `.exe`/`.lnk` 变体），代理对尚不存在的文件返回 404，客户端据此判定无权限。上游同版本
+  行为一致（U-10），未修改。
 
 以上限制均未被伪装成已支持。逐项原因与替代方案见
 [docs/openwrt-tjs-unsupported-and-replacements.md](docs/openwrt-tjs-unsupported-and-replacements.md)。
